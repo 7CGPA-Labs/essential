@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'ffi/llama_bindings.dart';
@@ -275,34 +274,75 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         .replaceAll('<|endoftext|>', '')
         .trimRight();
 
-    // Widget JSON parsing: ONLY when user explicitly asked for a widget
-    // Prevents algorithm code with {} from being mistaken as widget specs
+    // HTML Mini App extraction: Handles ```html, ``` codeblocks, or raw <!DOCTYPE html>/<html> tags
     MiniAppItem? generatedWidget;
     if (isWidgetRequest) {
       try {
-        // Look for ```json block first, fall back to raw JSON
-        final jsonBlockMatch = RegExp(r'```json\s*([\s\S]*?)```').firstMatch(finalText);
-        final jsonStr = jsonBlockMatch != null
-            ? jsonBlockMatch.group(1)!.trim()
-            : () {
-                final s = finalText.indexOf('{');
-                final e = finalText.lastIndexOf('}') + 1;
-                return (s >= 0 && e > s) ? finalText.substring(s, e) : '';
-              }();
+        String? extractedHtml;
 
-        if (jsonStr.isNotEmpty) {
-          final parsedMap = jsonDecode(jsonStr) as Map<String, dynamic>;
-          if (parsedMap.containsKey('title') && parsedMap.containsKey('htmlContent')) {
-            generatedWidget = MiniAppItem(
-              id: 'app-${DateTime.now().millisecondsSinceEpoch}',
-              title: parsedMap['title'] as String? ?? 'Generated Mini App',
-              description: parsedMap['description'] as String? ?? 'Generated via Chat on $_gpuInfo',
-              htmlContent: parsedMap['htmlContent'] as String? ?? '<html><body><h1>Hello</h1></body></html>',
-            );
-            _miniAppManager.addMiniApp(generatedWidget);
+        // 1. Match ```html ... ``` code block
+        final htmlBlockMatch =
+            RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false)
+                .firstMatch(finalText);
+        if (htmlBlockMatch != null) {
+          extractedHtml = htmlBlockMatch.group(1)!.trim();
+        } else {
+          // 2. Match generic ``` code block containing HTML tags
+          final genericBlockMatch =
+              RegExp(r'```(?:[a-z]*)\s*([\s\S]*?)```', caseSensitive: false)
+                  .firstMatch(finalText);
+          if (genericBlockMatch != null &&
+              (genericBlockMatch.group(1)!.contains('<!DOCTYPE html>') ||
+                  genericBlockMatch.group(1)!.contains('<html'))) {
+            extractedHtml = genericBlockMatch.group(1)!.trim();
+          } else {
+            // 3. Fallback: match direct <!DOCTYPE html> or <html> substring
+            final docTypeStart = finalText.indexOf('<!DOCTYPE html');
+            final htmlStart = finalText.indexOf('<html');
+            final startIdx = docTypeStart >= 0
+                ? docTypeStart
+                : (htmlStart >= 0 ? htmlStart : -1);
+            final endIdx = finalText.lastIndexOf('</html>');
+            if (startIdx >= 0 && endIdx > startIdx) {
+              extractedHtml = finalText.substring(startIdx, endIdx + 7).trim();
+            }
           }
         }
-      } catch (_) {}
+
+        if (extractedHtml != null && extractedHtml.isNotEmpty) {
+          String appTitle = 'Generated Mini App';
+          final titleTag = RegExp(r'<title[^>]*>(.*?)</title>',
+                  caseSensitive: false, dotAll: true)
+              .firstMatch(extractedHtml);
+          final h1Tag = RegExp(r'<h[12][^>]*>(.*?)</h[12]>',
+                  caseSensitive: false, dotAll: true)
+              .firstMatch(extractedHtml);
+
+          if (titleTag?.group(1)?.trim().isNotEmpty == true) {
+            appTitle = titleTag!.group(1)!.trim();
+          } else if (h1Tag?.group(1)?.trim().isNotEmpty == true) {
+            appTitle =
+                h1Tag!.group(1)!.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+          }
+
+          final wantsBackground = lowerPrompt.contains('background') ||
+              lowerPrompt.contains('alarm') ||
+              lowerPrompt.contains('track') ||
+              lowerPrompt.contains('notify') ||
+              lowerPrompt.contains('alert');
+
+          generatedWidget = MiniAppItem(
+            id: 'app-${DateTime.now().millisecondsSinceEpoch}',
+            title: appTitle,
+            description: 'Built by Essential AI on-device',
+            htmlContent: extractedHtml,
+            backgroundEnabled: wantsBackground,
+          );
+          _miniAppManager.addMiniApp(generatedWidget);
+        }
+      } catch (e) {
+        debugPrint('Mini app extraction error: $e');
+      }
     }
 
     setState(() {
