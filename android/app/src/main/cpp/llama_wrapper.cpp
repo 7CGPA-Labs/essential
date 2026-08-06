@@ -61,8 +61,8 @@ int64_t essential_init_model(const char* model_path, int32_t backend_type, int32
     }
 
     llama_context_params cparams = llama_context_default_params();
-    cparams.n_ctx     = 2048;
-    cparams.n_batch   = 2048;
+    cparams.n_ctx     = 4096;
+    cparams.n_batch   = 4096;
     cparams.n_ubatch  = 512;
     cparams.n_threads = 1; // 1 thread minimum for FFI dispatch; 100% tensor compute on GPU
 
