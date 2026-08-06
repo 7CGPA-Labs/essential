@@ -45,6 +45,8 @@ dependencies:
   torch_light: ^1.0.0
   connectivity_plus: ^6.0.0
   flutter_markdown: ^0.7.6
+  image_picker: ^1.1.2
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:

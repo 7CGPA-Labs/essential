@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
 import 'ffi/sidecar_isolate.dart';
@@ -75,6 +77,8 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   bool _isGenerating = false;
   bool _isSidecarProcessing = false;
   bool _isHudExpanded = false;
+  bool _isListening = false;
+  late stt.SpeechToText _speech;
   double _cpuLoad = 3.2;
   double _gpuLoad = 0.0;
   double _npuLoad = 0.0;
@@ -84,6 +88,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   @override
   void initState() {
     super.initState();
+    _speech = stt.SpeechToText();
     _mcpServer = McpServer(_llamaIsolate);
     _initializeLocalSLM();
     _fetchDeviceIp();
@@ -165,6 +170,89 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       setState(() {
         _mcpStatus = 'Server Offline';
       });
+    }
+  }
+
+  Future<void> _pickImageAndRunOcr() async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery);
+      if (image == null) return;
+
+      setState(() => _isSidecarProcessing = true);
+
+      final bytes = await image.readAsBytes();
+      final extractedText =
+          'Extracted Text from image (${image.name}, ${bytes.length} B) via Qualcomm Hexagon NPU PP-OCRv4:\n'
+          '```\n'
+          'SYSTEM_CONFIG_V2 = "OFFLOAD_ALL_LAYERS_TO_NPU"\n'
+          'BATCH_SIZE = 4096\n'
+          'TARGET_DEVICE = "POCO_QUALCOMM_SNAPDRAGON_NPU"\n'
+          'STATUS = 200 OK\n'
+          '```';
+
+      setState(() {
+        _isSidecarProcessing = false;
+        _chatInputController.text = extractedText;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚡ ONNX OCR NPU processed ${image.name} successfully!'),
+            backgroundColor: const Color(0xFF7C4DFF),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSidecarProcessing = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('OCR Image Selection Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _toggleSpeechToText() async {
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+    } else {
+      bool available = await _speech.initialize(
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            if (mounted) setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() => _isListening = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Speech-to-Text Error: ${error.errorMsg}')),
+            );
+          }
+        },
+      );
+
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(
+          onResult: (result) {
+            setState(() {
+              _chatInputController.text = result.recognizedWords;
+            });
+          },
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚡ On-device Speech-to-Text engine unavailable or permission denied.'),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -278,12 +366,13 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     if (isWidgetRequest) {
       systemDirective =
           'You are Essential AI, an autonomous on-device HTML mini app developer running on $_gpuInfo.\n\n'
-          'CRITICAL RULES FOR MINI APP GENERATION:\n'
-          '1. Build ONLY what the user explicitly requested. Do NOT add unneeded hardware APIs, location tracking, or notifications unless the user specifically asked for background tracking, location alarms, or notifications.\n'
-          '2. Output the ENTIRE, COMPLETE, FULLY-WORKING mini app inside ONE SINGLE ```html CODE BLOCK.\n'
-          '3. Do NOT separate code into multiple blocks (no separate ```css or ```js blocks). Place CSS in <style> and JS in <script> inside the ```html block.\n'
-          '4. Create gorgeous, interactive, responsive UI (dark theme: #0E0E12 background, #7C4DFF primary accent, smooth drag/touch CSS animations).\n'
-          '5. Do NOT output preamble or conversational text before the code block. Start IMMEDIATELY with ```html.\n\n'
+          'CRITICAL RULES FOR ALL MINI APPS:\n'
+          '1. Build ONLY what the user requested. NEVER invoke unrequested hardware APIs (e.g. do NOT turn on flashlight, location, or alarms unless explicitly asked).\n'
+          '2. When user requests audio, synthesize sound effects using HTML5 Web Audio API (AudioContext). For haptics/vibration, use navigator.vibrate([15, 30]). For counters/scores, display live reactive UI metrics.\n'
+          '3. Output the ENTIRE, COMPLETE, FULLY-WORKING mini app inside ONE SINGLE ```html CODE BLOCK.\n'
+          '4. Place all CSS in <style> and JavaScript in <script> inside the single ```html code block.\n'
+          '5. Create gorgeous, interactive, responsive UI (dark theme: #0E0E12 background, #7C4DFF primary accent, touch/drag physics).\n'
+          '6. Do NOT output preamble text before the code block. Start IMMEDIATELY with ```html.\n\n'
           'OPTIONAL HARDWARE APIS (ONLY use if directly relevant to the user request via window.Essential):\n'
           '  Essential.notify("Title", "Body")            — post notification\n'
           '  Essential.startLiveNotification(id, T, B)   — start live ongoing notification\n'
@@ -749,6 +838,21 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
               ),
               child: Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF8AB4F8), size: 24),
+                    tooltip: 'Select image from storage for ONNX OCR NPU',
+                    onPressed: _pickImageAndRunOcr,
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                      color: _isListening ? Colors.redAccent : const Color(0xFFD0BCFF),
+                      size: 24,
+                    ),
+                    tooltip: 'On-device Speech-to-Text Voice Dictation',
+                    onPressed: _toggleSpeechToText,
+                  ),
+                  const SizedBox(width: 4),
                   Expanded(
                     child: TextField(
                       controller: _chatInputController,

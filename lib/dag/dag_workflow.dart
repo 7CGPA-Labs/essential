@@ -337,29 +337,32 @@ class _EdgePainter extends CustomPainter {
 
   _EdgePainter(this.edges, this.nodes);
 
-  Offset _center(DagNode n) =>
-      n.position + const Offset(nodeW / 2, nodeH / 2);
+  Offset _rightCenter(DagNode n) =>
+      n.position + const Offset(nodeW, nodeH / 2);
+  Offset _leftCenter(DagNode n) =>
+      n.position + const Offset(0, nodeH / 2);
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF7C4DFF).withValues(alpha: 0.7)
-      ..strokeWidth = 2.5
+      ..color = const Color(0xFF7C4DFF).withValues(alpha: 0.85)
+      ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke;
 
     final arrowPaint = Paint()
-      ..color = const Color(0xFF7C4DFF).withValues(alpha: 0.9)
+      ..color = const Color(0xFF8AB4F8)
       ..style = PaintingStyle.fill;
 
     for (final edge in edges) {
       try {
         final from = nodes.firstWhere((n) => n.id == edge.fromNodeId);
         final to = nodes.firstWhere((n) => n.id == edge.toNodeId);
-        final start = _center(from);
-        final end = _center(to);
+        final start = _rightCenter(from);
+        final end = _leftCenter(to);
 
-        final cp1 = Offset(start.dx + (end.dx - start.dx) * 0.5, start.dy);
-        final cp2 = Offset(start.dx + (end.dx - start.dx) * 0.5, end.dy);
+        final dx = ((end.dx - start.dx).abs() * 0.5).clamp(40.0, 300.0);
+        final cp1 = Offset(start.dx + dx, start.dy);
+        final cp2 = Offset(end.dx - dx, end.dy);
         final path = Path()
           ..moveTo(start.dx, start.dy)
           ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
