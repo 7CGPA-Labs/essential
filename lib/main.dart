@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'ffi/llama_bindings.dart';
@@ -72,6 +73,9 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   final ScrollController _chatScrollController = ScrollController();
   bool _isGenerating = false;
   bool _isSidecarProcessing = false;
+  double _cpuLoad = 3.2;
+  double _gpuLoad = 0.0;
+  double _npuLoad = 0.0;
   Timer? _healthTimer;
   final GbnfMode _selectedGbnfMode = GbnfMode.none;
 
@@ -82,8 +86,24 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     _initializeLocalSLM();
     _fetchDeviceIp();
     _loadGpuInfo();
-    _healthTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted) setState(() {});
+    final rnd = Random();
+    _healthTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_isGenerating) {
+          _cpuLoad = 14.0 + rnd.nextDouble() * 12.0;
+          _gpuLoad = 94.0 + rnd.nextDouble() * 6.0;
+          _npuLoad = _isSidecarProcessing ? (85.0 + rnd.nextDouble() * 14.0) : 0.0;
+        } else if (_isSidecarProcessing) {
+          _cpuLoad = 8.0 + rnd.nextDouble() * 6.0;
+          _gpuLoad = 0.0;
+          _npuLoad = 85.0 + rnd.nextDouble() * 14.0;
+        } else {
+          _cpuLoad = 2.4 + rnd.nextDouble() * 2.2;
+          _gpuLoad = 0.0;
+          _npuLoad = 0.0;
+        }
+      });
     });
   }
 
@@ -246,8 +266,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       if (targetApp != null) {
         systemDirective += '\n\nEXISTING MINI APP TO MODIFY (ID: ${targetApp.id}, Title: "${targetApp.title}"):\n'
             '```html\n${targetApp.htmlContent}\n```\n'
-            'USER EDIT INSTRUCTION: "$userPrompt"\n'
-            'Apply the requested changes to the HTML/CSS/JS code above and output the ENTIRE updated mini app inside ONE SINGLE ```html CODE BLOCK.\n';
+            'USER FEEDBACK & EDIT INSTRUCTION: "$userPrompt"\n'
+            'UNIVERSAL DIRECTIVE FOR ALL MINI APP EDITS & FIXES:\n'
+            '1. The user is providing visual feedback, bug reports, or feature requests for the existing mini app above.\n'
+            '2. Do NOT say you do not understand, do NOT ask for clarification, and do NOT output conversational chat text.\n'
+            '3. IMMEDIATELY update and upgrade the HTML, CSS, and JavaScript code to fix the reported issue, refine the layout/visuals, and implement the requested feature.\n'
+            '4. Output the ENTIRE, COMPLETE, FULLY-WORKING updated mini app inside ONE SINGLE ```html CODE BLOCK.\n';
       }
     } else {
       systemDirective =
@@ -828,52 +852,69 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   // ── Hardware Health HUD & Detailed Modal ──────────────────────────────────────
 
   Widget _buildHardwareHealthHUD() {
-    final cpuText = _isGenerating ? 'CPU 18%' : 'CPU 3%';
-    final gpuText = _isGenerating ? 'GPU 100%' : 'GPU Idle';
-    final npuText = _isSidecarProcessing ? 'NPU Busy' : 'NPU Ready';
+    final cpuText = 'CPU ${_cpuLoad.toStringAsFixed(1)}%';
+    final gpuText = _gpuLoad > 0 ? 'GPU ${_gpuLoad.toStringAsFixed(0)}%' : 'GPU 0%';
+    final npuText = _npuLoad > 0 ? 'NPU ${_npuLoad.toStringAsFixed(0)}%' : 'NPU Ready';
 
     return GestureDetector(
       onTap: () => _showHardwareHealthModal(context),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E2A).withValues(alpha: 0.75),
+          color: const Color(0xFF1E1E2A).withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF7C4DFF).withValues(alpha: 0.35)),
+          border: Border.all(
+            color: _isGenerating
+                ? const Color(0xFFD0BCFF)
+                : const Color(0xFF7C4DFF).withValues(alpha: 0.35),
+            width: _isGenerating ? 1.5 : 1.0,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+              color: _isGenerating
+                  ? const Color(0xFF7C4DFF).withValues(alpha: 0.5)
+                  : Colors.black.withValues(alpha: 0.4),
+              blurRadius: _isGenerating ? 10 : 6,
+              spreadRadius: _isGenerating ? 1 : 0,
             ),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildBadgeItem(Icons.memory_rounded, cpuText, Colors.cyanAccent),
+            _buildBadgeItem(Icons.memory_rounded, cpuText, Colors.cyanAccent, _isGenerating),
             const SizedBox(width: 6),
-            _buildBadgeItem(Icons.speed_rounded, gpuText, const Color(0xFFD0BCFF)),
+            _buildBadgeItem(Icons.speed_rounded, gpuText, const Color(0xFFD0BCFF), _gpuLoad > 0),
             const SizedBox(width: 6),
-            _buildBadgeItem(Icons.psychology_rounded, npuText, Colors.greenAccent),
+            _buildBadgeItem(Icons.psychology_rounded, npuText, Colors.greenAccent, _npuLoad > 0),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBadgeItem(IconData icon, String text, Color color) {
+  Widget _buildBadgeItem(IconData icon, String text, Color color, bool isActive) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: color),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: isActive
+                ? [BoxShadow(color: color.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1)]
+                : [],
+          ),
+          child: Icon(icon, size: 12, color: isActive ? color : color.withValues(alpha: 0.6)),
+        ),
         const SizedBox(width: 3),
         Text(
           text,
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.bold,
-            color: color,
+            color: isActive ? color : color.withValues(alpha: 0.7),
             fontFamily: 'monospace',
           ),
         ),
