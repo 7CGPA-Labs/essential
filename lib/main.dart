@@ -147,14 +147,27 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     final lowerPrompt = userPrompt.toLowerCase();
 
-    // ── Mini-app build request detection ────────────────────────────────
+    // ── Mini-app build / edit request detection ─────────────────────────
     const buildVerbs = ['build', 'create', 'make', 'generate', 'write me'];
+    const editVerbs = ['edit', 'modify', 'update', 'change', 'refactor', 'improve', 'redesign', 'fix', 'add'];
     const appNouns = [
       'mini app', 'widget', 'micro app', 'app', 'alarm', 'tracker',
       'dashboard', 'timer', 'clock', 'monitor', 'calculator', 'tool',
-      'page', 'screen', 'ui', 'interface'
+      'page', 'screen', 'ui', 'interface', 'fidget', 'spinner'
     ];
-    final bool isWidgetRequest = lowerPrompt.contains('mini app') ||
+
+    final MiniAppItem? targetApp = _miniAppManager.findAppByTitleOrQuery(userPrompt) ??
+        ((editVerbs.any((v) => lowerPrompt.contains(v)) && _miniAppManager.value.isNotEmpty)
+            ? _miniAppManager.value.last
+            : null);
+
+    final bool isEditRequest = targetApp != null &&
+        (editVerbs.any((v) => lowerPrompt.contains(v)) ||
+         lowerPrompt.contains('change') || lowerPrompt.contains('add') ||
+         lowerPrompt.contains('make it') || lowerPrompt.contains('edit'));
+
+    final bool isWidgetRequest = isEditRequest ||
+        lowerPrompt.contains('mini app') ||
         lowerPrompt.contains('micro app') ||
         lowerPrompt.contains('widget') ||
         (buildVerbs.any((v) => lowerPrompt.contains(v)) &&
@@ -220,6 +233,13 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
           '  Essential.setGeoAlarm(lat, lng, r, T, B)    — 500m geo-alarm -> onGeoAlarmTriggered()\n'
           '  Essential.watchSensor("gyroscope"|"light")  — sensor stream -> onSensorData(type, x, y, z)\n'
           '  Essential.setFlashlight(true | false)       — toggle camera torch LED\n';
+
+      if (targetApp != null) {
+        systemDirective += '\n\nEXISTING MINI APP TO MODIFY (ID: ${targetApp.id}, Title: "${targetApp.title}"):\n'
+            '```html\n${targetApp.htmlContent}\n```\n'
+            'USER EDIT INSTRUCTION: "$userPrompt"\n'
+            'Apply the requested changes to the HTML/CSS/JS code above and output the ENTIRE updated mini app inside ONE SINGLE ```html CODE BLOCK.\n';
+      }
     } else {
       systemDirective =
           'You are Essential AI, an expert Senior Staff Software Engineer '
@@ -306,7 +326,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         }
 
         if (extractedHtml != null && extractedHtml.isNotEmpty) {
-          String appTitle = 'Generated Mini App';
+          String appTitle = targetApp?.title ?? 'Generated Mini App';
           final titleTag = RegExp(r'<title[^>]*>(.*?)</title>',
                   caseSensitive: false, dotAll: true)
               .firstMatch(extractedHtml);
@@ -325,16 +345,25 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
               lowerPrompt.contains('alarm') ||
               lowerPrompt.contains('track') ||
               lowerPrompt.contains('notify') ||
-              lowerPrompt.contains('alert');
+              lowerPrompt.contains('alert') ||
+              (targetApp?.backgroundEnabled ?? false);
 
-          generatedWidget = MiniAppItem(
-            id: 'app-${DateTime.now().millisecondsSinceEpoch}',
-            title: appTitle,
-            description: 'Built by Essential AI on-device',
-            htmlContent: extractedHtml,
-            backgroundEnabled: wantsBackground,
-          );
-          _miniAppManager.addMiniApp(generatedWidget);
+          if (targetApp != null) {
+            targetApp.title = appTitle;
+            targetApp.htmlContent = extractedHtml;
+            targetApp.backgroundEnabled = wantsBackground;
+            _miniAppManager.updateHtml(targetApp.id, extractedHtml);
+            generatedWidget = targetApp;
+          } else {
+            generatedWidget = MiniAppItem(
+              id: 'app-${DateTime.now().millisecondsSinceEpoch}',
+              title: appTitle,
+              description: 'Built by Essential AI on-device',
+              htmlContent: extractedHtml,
+              backgroundEnabled: wantsBackground,
+            );
+            _miniAppManager.addMiniApp(generatedWidget);
+          }
         }
       } catch (e) {
         debugPrint('Mini app extraction error: $e');

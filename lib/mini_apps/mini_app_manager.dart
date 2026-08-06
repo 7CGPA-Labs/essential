@@ -226,4 +226,16 @@ class MiniAppManager extends ValueNotifier<List<MiniAppItem>> {
     }).toList();
     value = updated;
   }
+
+  MiniAppItem? findAppByTitleOrQuery(String query) {
+    final lower = query.toLowerCase();
+    for (final app in value.reversed) {
+      final titleLower = app.title.toLowerCase();
+      final words = titleLower.split(RegExp(r'\s+'));
+      if (lower.contains(titleLower) || words.any((w) => w.length > 3 && lower.contains(w))) {
+        return app;
+      }
+    }
+    return null;
+  }
 }
