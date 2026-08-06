@@ -870,20 +870,20 @@ class _DagWorkflowCanvasState extends State<DagWorkflowCanvas> {
             },
             child: InteractiveViewer(
               transformationController: _transformCtrl,
-              boundaryMargin: const EdgeInsets.all(500),
-              minScale: 0.3,
-              maxScale: 2.5,
+              boundaryMargin: const EdgeInsets.all(1200),
+              minScale: 0.1,
+              maxScale: 3.5,
               child: SizedBox(
-                width: 1200,
-                height: 900,
+                width: 3200,
+                height: 2400,
                 child: Stack(
                   children: [
                     CustomPaint(
-                      size: const Size(1200, 900),
+                      size: const Size(3200, 2400),
                       painter: _GridPainter(),
                     ),
                     CustomPaint(
-                      size: const Size(1200, 900),
+                      size: const Size(3200, 2400),
                       painter: _EdgePainter(_state.edges, _state.nodes),
                     ),
                     ..._state.nodes.map((node) => _DagNodeCard(
@@ -900,8 +900,12 @@ class _DagWorkflowCanvasState extends State<DagWorkflowCanvas> {
                             }
                           },
                           onConnectTap: () {
-                            if (_state.pendingEdgeFrom == node.id) {
-                              _state.cancelEdge();
+                            if (_state.pendingEdgeFrom != null) {
+                              if (_state.pendingEdgeFrom == node.id) {
+                                _state.cancelEdge();
+                              } else {
+                                _state.connectEdge(node.id);
+                              }
                             } else {
                               _state.startEdge(node.id);
                             }
