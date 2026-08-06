@@ -463,11 +463,14 @@ class _DagNodeCard extends StatelessWidget {
                       children: [
                         Icon(node.type.icon, size: 14, color: color),
                         const SizedBox(width: 4),
-                        Text(
-                          node.type.label,
-                          style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w600),
+                        Expanded(
+                          child: Text(
+                            node.type.label,
+                            style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ),
-                        const Spacer(),
                         GestureDetector(
                           onTap: onConnectTap,
                           child: Container(
@@ -806,7 +809,11 @@ class _DagWorkflowCanvasState extends State<DagWorkflowCanvas> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           color: const Color(0xFF14141B),
-          child: Row(
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -820,34 +827,38 @@ class _DagWorkflowCanvasState extends State<DagWorkflowCanvas> {
                       style: TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Colors.grey, size: 20),
-                tooltip: 'Reset results',
-                onPressed: _isRunning ? null : _state.resetExecution,
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF8AB4F8), size: 22),
-                tooltip: 'Add node',
-                onPressed: _showAddNodeSheet,
-              ),
-              const SizedBox(width: 4),
-              ElevatedButton.icon(
-                onPressed: _isRunning ? null : _runWorkflow,
-                icon: _isRunning
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.play_arrow_rounded, size: 18),
-                label: Text(_isRunning ? 'Running...' : 'Run All'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C4DFF),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.grey, size: 20),
+                    tooltip: 'Reset results',
+                    onPressed: _isRunning ? null : _state.resetExecution,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline, color: Color(0xFF8AB4F8), size: 22),
+                    tooltip: 'Add node',
+                    onPressed: _showAddNodeSheet,
+                  ),
+                  const SizedBox(width: 4),
+                  ElevatedButton.icon(
+                    onPressed: _isRunning ? null : _runWorkflow,
+                    icon: _isRunning
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.play_arrow_rounded, size: 18),
+                    label: Text(_isRunning ? 'Running...' : 'Run All'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C4DFF),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
