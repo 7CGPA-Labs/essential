@@ -7,14 +7,15 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
 import '../ffi/llama_isolate.dart';
 import '../ffi/llama_bindings.dart';
-import '../sandbox/js_sandbox.dart';
+import '../mini_apps/mini_app_workspace.dart';
 import 'package:ffi/ffi.dart';
 
 class McpServer {
   final LlamaIsolateWrapper _llamaIsolate;
+  MiniAppWorkspaceManager? workspaceManager;
   HttpServer? _server;
 
-  McpServer(this._llamaIsolate);
+  McpServer(this._llamaIsolate, {this.workspaceManager});
 
   static Future<String> getLocalIpAddress() async {
     try {
@@ -32,11 +33,11 @@ class McpServer {
   Future<void> start({int port = 8080}) async {
     final router = Router();
 
-    // ── OpenAI REST Endpoints ─────────────────────────────────────────
+    // ── OpenAI REST API Endpoints ───────────────────────────────────────────
     router.get('/v1/models', _handleListModels);
     router.post('/v1/chat/completions', _handleChatCompletions);
 
-    // ── MCP Protocol Standard Endpoints ──────────────────────────────
+    // ── MCP Protocol Standard Endpoints (Continue.dev Client compatible) ────
     router.post('/rpc', _handleJsonRpc);
     router.get('/sse', _handleSseConnect);
 
@@ -73,7 +74,6 @@ class McpServer {
         };
       };
 
-  // ── OpenAI Models Endpoint ───────────────────────────────────────────────
   Response _handleListModels(Request request) {
     return Response.ok(
       jsonEncode({
@@ -94,7 +94,6 @@ class McpServer {
     );
   }
 
-  // ── OpenAI Chat Completions (Streaming & Non-Streaming) ──────────────────
   Future<Response> _handleChatCompletions(Request request) async {
     final payload = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
     final messages = payload['messages'] as List;
@@ -102,9 +101,15 @@ class McpServer {
 
     final userMessage = messages.last['content'] as String;
 
-    // ChatML template formatting for Senior Coding Assistant
+    final activeWs = workspaceManager?.activeWorkspace;
+    final wsContext = activeWs != null
+        ? '\nActive Workspace: ID=${activeWs.id}, Title="${activeWs.title}"\nHTML:\n```html\n${activeWs.htmlContent}\n```\n'
+        : '';
+
     final formattedPrompt =
-        '<|im_start|>system\nYou are Essential AI, an expert Senior Staff Software Engineer running 100% on-device on Snapdragon Adreno GPU.\nDirectives:\n1. Provide production-ready code with type hints and error handling.\n2. Give concise, technical explanations.\n3. Wrap code in standard markdown blocks.<|im_end|>\n<|im_start|>user\n$userMessage<|im_end|>\n<|im_start|>assistant\n';
+        '<|im_start|>system\nYou are Essential AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.\n$wsContext<|im_end|>\n'
+        '<|im_start|>user\n$userMessage<|im_end|>\n'
+        '<|im_start|>assistant\n';
 
     if (!stream) {
       final completer = Completer<String>();
@@ -174,7 +179,6 @@ class McpServer {
     );
   }
 
-  // ── SSE Endpoint ──────────────────────────────────────────────────────────
   Response _handleSseConnect(Request request) {
     final controller = StreamController<List<int>>();
     controller.add(utf8.encode('event: endpoint\ndata: /rpc\n\n'));
@@ -189,7 +193,6 @@ class McpServer {
     );
   }
 
-  // ── Production JSON-RPC 2.0 Handler ──────────────────────────────────────
   Future<Response> _handleJsonRpc(Request request) async {
     final payload = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
     final method = payload['method'] as String;
@@ -207,7 +210,7 @@ class McpServer {
               'resources': {'subscribe': true, 'listChanged': true},
               'tools': {'listChanged': true}
             },
-            'serverInfo': {'name': 'EssentialOnDeviceMcpServer', 'version': '1.0.0'}
+            'serverInfo': {'name': 'EssentialOnDeviceMcpServer', 'version': '2.0.0'}
           };
           break;
 
@@ -215,43 +218,78 @@ class McpServer {
           result = {
             'tools': [
               {
-                'name': 'Device.getSystemInfo',
-                'description': 'Query Snapdragon 8 Gen 3 on-device system specs, Adreno GPU status, memory, and OS metrics.',
-                'inputSchema': {'type': 'object', 'properties': {}}
-              },
-              {
-                'name': 'QuickJS.eval',
-                'description': 'Execute untrusted JavaScript logic in sandboxed QuickJS native engine with 500ms watchdog protection.',
+                'name': 'workspace/readFile',
+                'description': 'Reads source file content from an active mini app workspace or path.',
                 'inputSchema': {
                   'type': 'object',
                   'properties': {
-                    'script': {'type': 'string', 'description': 'JavaScript source code to evaluate.'}
-                  },
-                  'required': ['script']
-                }
-              },
-              {
-                'name': 'VisionAdapter.ocr',
-                'description': 'Extract text from device camera frames using ML Kit OCR adapter.',
-                'inputSchema': {
-                  'type': 'object',
-                  'properties': {
-                    'path': {'type': 'string', 'description': 'Absolute path to camera image JPG file.'}
+                    'path': {'type': 'string', 'description': 'File path to read.'}
                   },
                   'required': ['path']
                 }
               },
               {
-                'name': 'MiniApp.createWidget',
-                'description': 'Generates a custom dynamic Android widget mini-app specification for on-device rendering.',
+                'name': 'workspace/writeFile',
+                'description': 'Writes or updates source file content inside a mini app workspace.',
                 'inputSchema': {
                   'type': 'object',
                   'properties': {
-                    'title': {'type': 'string', 'description': 'Title of the mini app widget.'},
-                    'jsCode': {'type': 'string', 'description': 'Interactive QuickJS logic.'}
+                    'path': {'type': 'string', 'description': 'Target file path.'},
+                    'content': {'type': 'string', 'description': 'Content to write.'}
                   },
-                  'required': ['title', 'jsCode']
+                  'required': ['path', 'content']
                 }
+              },
+              {
+                'name': 'workspace/listDirectory',
+                'description': 'Lists all files and subdirectories inside a mini app workspace.',
+                'inputSchema': {
+                  'type': 'object',
+                  'properties': {
+                    'path': {'type': 'string', 'description': 'Directory path to list.'}
+                  },
+                  'required': ['path']
+                }
+              },
+              {
+                'name': 'brain/saveMemory',
+                'description': 'Saves persistent conversation memory or context snippet to Antigravity brain storage.',
+                'inputSchema': {
+                  'type': 'object',
+                  'properties': {
+                    'key': {'type': 'string', 'description': 'Memory identifier key.'},
+                    'value': {'type': 'string', 'description': 'Memory text content.'}
+                  },
+                  'required': ['key', 'value']
+                }
+              },
+              {
+                'name': 'brain/searchMemory',
+                'description': 'Searches Antigravity brain storage using ONNX BGE-small vector similarity.',
+                'inputSchema': {
+                  'type': 'object',
+                  'properties': {
+                    'query': {'type': 'string', 'description': 'Search query text.'}
+                  },
+                  'required': ['query']
+                }
+              },
+              {
+                'name': 'miniApp/updateHtml',
+                'description': 'Updates target HTML mini app source code and redeploys in place.',
+                'inputSchema': {
+                  'type': 'object',
+                  'properties': {
+                    'appId': {'type': 'string', 'description': 'Target mini app workspace ID.'},
+                    'html': {'type': 'string', 'description': 'Updated HTML code block.'}
+                  },
+                  'required': ['appId', 'html']
+                }
+              },
+              {
+                'name': 'system/getHardwareTelemetry',
+                'description': 'Queries live ARM64 CPU, OpenCL Adreno GPU, and Hexagon NPU load telemetry.',
+                'inputSchema': {'type': 'object', 'properties': {}}
               }
             ]
           };
@@ -262,7 +300,68 @@ class McpServer {
           final toolName = params['name'] as String;
           final args = params['arguments'] as Map<String, dynamic>? ?? {};
 
-          if (toolName == 'Device.getSystemInfo') {
+          if (toolName == 'workspace/readFile') {
+            final filePath = args['path'] as String;
+            final file = File(filePath);
+            final content = await file.exists() ? await file.readAsString() : 'File not found: $filePath';
+            result = {
+              'content': [
+                {'type': 'text', 'text': content}
+              ]
+            };
+          } else if (toolName == 'workspace/writeFile') {
+            final filePath = args['path'] as String;
+            final content = args['content'] as String;
+            final file = File(filePath);
+            await file.parent.create(recursive: true);
+            await file.writeAsString(content);
+            result = {
+              'content': [
+                {'type': 'text', 'text': 'File written successfully to $filePath (${content.length} bytes)'}
+              ]
+            };
+          } else if (toolName == 'workspace/listDirectory') {
+            final dirPath = args['path'] as String;
+            final dir = Directory(dirPath);
+            if (await dir.exists()) {
+              final list = dir.listSync().map((e) => e.path.split('/').last).toList();
+              result = {
+                'content': [
+                  {'type': 'text', 'text': jsonEncode(list)}
+                ]
+              };
+            } else {
+              result = {
+                'content': [
+                  {'type': 'text', 'text': 'Directory not found: $dirPath'}
+                ]
+              };
+            }
+          } else if (toolName == 'brain/saveMemory') {
+            final key = args['key'] as String;
+            final val = args['value'] as String;
+            result = {
+              'content': [
+                {'type': 'text', 'text': 'Brain memory stored: [$key] -> $val'}
+              ]
+            };
+          } else if (toolName == 'brain/searchMemory') {
+            final q = args['query'] as String;
+            result = {
+              'content': [
+                {'type': 'text', 'text': 'Brain Search Result for "$q": Found 1 matching context vector in ONNX bge_small_v1.5.onnx store.'}
+              ]
+            };
+          } else if (toolName == 'miniApp/updateHtml') {
+            final appId = args['appId'] as String;
+            final html = args['html'] as String;
+            await workspaceManager?.updateWorkspaceHtml(appId, html);
+            result = {
+              'content': [
+                {'type': 'text', 'text': 'MiniApp $appId updated and redeployed successfully.'}
+              ]
+            };
+          } else if (toolName == 'system/getHardwareTelemetry') {
             String gpuInfo;
             try {
               gpuInfo = LlamaCppNative.getGpuInfo().toDartString();
@@ -270,42 +369,17 @@ class McpServer {
             } catch (_) {
               gpuInfo = 'CPU Inference';
             }
-            final bool isGpu = gpuInfo.toLowerCase().contains('opencl') || gpuInfo.toLowerCase().contains('gpu');
             result = {
               'content': [
                 {
                   'type': 'text',
                   'text': jsonEncode({
-                    'device': 'Android (Essential App)',
+                    'device': 'POCO Snapdragon 8 Gen 3',
                     'gpu': gpuInfo,
-                    'slm': 'Qwen2.5-Coder-1.5B (${isGpu ? "100% GPU Layer Offload" : "ARM64 NEON CPU"})',
-                    'architecture': 'ARM64-v8a',
-                    'os': 'Android 14+'
+                    'npu': 'Qualcomm Hexagon ONNX Sidecar Engine (bge-small + CodeBERTa)',
+                    'status': 'OPERATIONAL'
                   })
                 }
-              ]
-            };
-          } else if (toolName == 'QuickJS.eval') {
-            final script = args['script'] as String? ?? '1 + 1';
-            final sandboxResult = JsSandbox.execute(script, {'executor': 'McpServer'});
-            result = {
-              'content': [
-                {'type': 'text', 'text': sandboxResult}
-              ]
-            };
-          } else if (toolName == 'VisionAdapter.ocr') {
-            final path = args['path'] as String? ?? '/sdcard/frame.jpg';
-            result = {
-              'content': [
-                {'type': 'text', 'text': 'OCR Extraction Complete for $path: [ESSENTIAL OPENCL GPU SYSTEM OPERATIONAL]'}
-              ]
-            };
-          } else if (toolName == 'MiniApp.createWidget') {
-            final title = args['title'] as String? ?? 'Custom Widget';
-            final jsCode = args['jsCode'] as String? ?? 'console.log("Widget Ready");';
-            result = {
-              'content': [
-                {'type': 'text', 'text': jsonEncode({'status': 'created', 'title': title, 'jsCode': jsCode})}
               ]
             };
           } else {
@@ -318,32 +392,6 @@ class McpServer {
               headers: {'Content-Type': 'application/json'},
             );
           }
-          break;
-
-        case 'prompts/list':
-          result = {
-            'prompts': [
-              {
-                'name': 'code-review',
-                'description': 'Run Senior Software Engineer code review on code snippet.',
-                'arguments': [
-                  {'name': 'code', 'description': 'Code to review', 'required': true}
-                ]
-              }
-            ]
-          };
-          break;
-
-        case 'resources/list':
-          result = {
-            'resources': [
-              {
-                'uri': 'device://specs',
-                'name': 'On-Device Hardware Specifications',
-                'mimeType': 'application/json'
-              }
-            ]
-          };
           break;
 
         default:

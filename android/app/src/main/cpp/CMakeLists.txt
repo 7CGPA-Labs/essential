@@ -23,26 +23,15 @@ set_target_properties(libggml_cpu  PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}
 set_target_properties(libggml_opencl PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}/libggml-opencl.so)
 set_target_properties(libomp PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}/libomp.so)
 
-# JNI Sandbox - QuickJS integration
-add_subdirectory(quickjs EXCLUDE_FROM_ALL)
-
-# Optional ONNX Runtime linkage if present in jniLibs
-if(EXISTS "${LLAMA_JNI_DIR}/libonnxruntime.so")
-    add_library(libonnxruntime SHARED IMPORTED)
-    set_target_properties(libonnxruntime PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}/libonnxruntime.so)
-endif()
-
-# Our FFI wrapper: real llama.cpp + QuickJS bridge + ONNX Sidecar engine
+# Our FFI wrapper: real llama.cpp + ONNX Sidecar engine
 add_library(essential_native SHARED
     llama_wrapper.cpp
-    quickjs_bridge.cpp
     sidecar_engine.cpp
     sidecar_c_api.cpp
 )
 
 target_include_directories(essential_native PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/quickjs
     ${LLAMA_INCLUDE_DIR}
     ${GGML_INCLUDE_DIR}
 )
@@ -51,7 +40,6 @@ target_include_directories(essential_native PRIVATE
 target_link_libraries(essential_native
     android
     log
-    qjs
     libomp
     libllama
     libggml

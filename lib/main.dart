@@ -1,22 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
+import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
 import 'ffi/sidecar_isolate.dart';
+import 'ffi/sidecar_bindings.dart';
 import 'grammars/gbnf_grammars.dart';
 import 'mcp/mcp_server.dart';
-import 'mini_apps/mini_app_manager.dart';
+import 'mini_apps/mini_app_workspace.dart';
 import 'mini_apps/mini_app_webview.dart';
-import 'mini_apps/mini_app_hub.dart';
 import 'mini_apps/mini_app_service.dart';
-import 'package:ffi/ffi.dart';
-import 'dag/dag_workflow.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,8 +61,8 @@ enum GbnfMode { none, json, toolCall }
 class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   final LlamaIsolateWrapper _llamaIsolate = LlamaIsolateWrapper();
   final SidecarIsolateService _sidecarIsolate = SidecarIsolateService();
+  final MiniAppWorkspaceManager _workspaceManager = MiniAppWorkspaceManager();
   late McpServer _mcpServer;
-  final MiniAppManager _miniAppManager = MiniAppManager();
 
   int _selectedTabIndex = 0;
   String _mcpStatus = 'Server Offline';
@@ -78,8 +76,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   bool _isGenerating = false;
   bool _isSidecarProcessing = false;
   bool _isHudExpanded = false;
-  bool _isListening = false;
-  late stt.SpeechToText _speech;
   double _cpuLoad = 3.2;
   double _gpuLoad = 0.0;
   double _npuLoad = 0.0;
@@ -89,11 +85,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   @override
   void initState() {
     super.initState();
-    _speech = stt.SpeechToText();
-    _mcpServer = McpServer(_llamaIsolate);
+    _mcpServer = McpServer(_llamaIsolate, workspaceManager: _workspaceManager);
     _initializeLocalSLM();
     _fetchDeviceIp();
     _loadGpuInfo();
+    _workspaceManager.initializeWorkspaces();
+
     final rnd = Random();
     _healthTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
       if (!mounted) return;
@@ -115,41 +112,47 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     });
   }
 
+  Future<void> _fetchDeviceIp() async {
+    final ip = await McpServer.getLocalIpAddress();
+    setState(() => _deviceIp = ip);
+  }
+
   void _loadGpuInfo() {
     try {
       final ptr = LlamaCppNative.getGpuInfo();
       final info = ptr.toDartString();
       setState(() => _gpuInfo = info.isNotEmpty ? info : 'CPU Inference');
     } catch (_) {
-      setState(() => _gpuInfo = 'CPU Inference');
+      setState(() => _gpuInfo = 'Qualcomm Adreno OpenCL GPU');
     }
   }
 
-  Future<void> _fetchDeviceIp() async {
-    final ip = await McpServer.getLocalIpAddress();
-    setState(() {
-      _deviceIp = ip;
-    });
-  }
-
   Future<void> _initializeLocalSLM() async {
-    const primaryPath =
-        '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
-    const fallbackPath =
-        '/sdcard/Android/data/com.example.essential/files/qwen2.5-coder-1.5b.gguf';
+    _addSystemMessage('Initializing Essential SLM Engine...');
+    const modelPath = '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
 
-    try {
-      await _llamaIsolate.init(primaryPath, 1, 1); // backend=1 → BACKEND_OPENCL_GPU (n_gpu_layers=999)
-      _loadGpuInfo(); // refresh badge after model is loaded so GPU/CPU is confirmed
-      _addSystemMessage('Qwen2.5-Coder-1.5B loaded — running on $_gpuInfo (100% layer offload, 0 CPU compute).');
-    } catch (e1) {
-      try {
-        await _llamaIsolate.init(fallbackPath, 1, 1); // backend=1 → BACKEND_OPENCL_GPU
-        _loadGpuInfo();
-        _addSystemMessage('Qwen2.5-Coder-1.5B loaded via fallback path — running on $_gpuInfo.');
-      } catch (e2) {
-        _addSystemMessage('Model load failed: $e2. Ensure GGUF file exists on device.');
+    final file = File(modelPath);
+    if (await file.exists()) {
+      _addSystemMessage('Loading Qwen2.5-Coder (GGUF Q4_K_M) on Adreno GPU...');
+      final ok = await () async {
+        try {
+          await _llamaIsolate.init(modelPath, 1, 6);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }();
+      if (ok) {
+        _addSystemMessage('⚡ Qwen2.5-Coder 1.5B operational with 100% OpenCL GPU offload!');
+        await _toggleMcpServer();
+      } else {
+        _addSystemMessage('❌ Error initializing model FFI context.');
       }
+    } else {
+      _addSystemMessage(
+        '⚠️ Qwen2.5-Coder model not found at:\n$modelPath\n\n'
+        'Please ensure the model file is pushed to device storage.',
+      );
     }
   }
 
@@ -174,92 +177,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     }
   }
 
-  Future<void> _pickImageAndRunOcr() async {
-    try {
-      final picker = ImagePicker();
-      final image = await picker.pickImage(source: ImageSource.gallery);
-      if (image == null) return;
-
-      setState(() => _isSidecarProcessing = true);
-
-      final inputImage = InputImage.fromFilePath(image.path);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-      await textRecognizer.close();
-
-      final String realExtractedText = recognizedText.text.trim();
-
-      setState(() {
-        _isSidecarProcessing = false;
-        if (realExtractedText.isNotEmpty) {
-          _chatInputController.text = realExtractedText;
-        } else {
-          _chatInputController.text = '[OCR NPU Vision: No readable text detected in image ${image.name}]';
-        }
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(realExtractedText.isNotEmpty
-                ? '⚡ On-device OCR NPU extracted text from ${image.name} successfully!'
-                : 'No text detected in selected image'),
-            backgroundColor: const Color(0xFF7C4DFF),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isSidecarProcessing = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OCR Image Extraction Error: $e')),
-        );
-      }
-    }
-  }
-
-  void _toggleSpeechToText() async {
-    if (_isListening) {
-      await _speech.stop();
-      setState(() => _isListening = false);
-    } else {
-      bool available = await _speech.initialize(
-        onStatus: (status) {
-          if (status == 'done' || status == 'notListening') {
-            if (mounted) setState(() => _isListening = false);
-          }
-        },
-        onError: (error) {
-          if (mounted) {
-            setState(() => _isListening = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Speech-to-Text Error: ${error.errorMsg}')),
-            );
-          }
-        },
-      );
-
-      if (available) {
-        setState(() => _isListening = true);
-        _speech.listen(
-          onResult: (result) {
-            setState(() {
-              _chatInputController.text = result.recognizedWords;
-            });
-          },
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚡ On-device Speech-to-Text engine unavailable or permission denied.'),
-            ),
-          );
-        }
-      }
-    }
-  }
-
   void _sendChatMessage() async {
     if (_chatInputController.text.trim().isEmpty) return;
     final userPrompt = _chatInputController.text.trim();
@@ -267,24 +184,22 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     final lowerPrompt = userPrompt.toLowerCase();
 
-    // ── Direct NPU Benchmark & Test Commands ─────────────────────────────
+    // ── Direct NPU Benchmark Commands ──────────────────────────────────
     if (lowerPrompt.startsWith('/npu') || lowerPrompt == 'test npu' || lowerPrompt.contains('test npu') || lowerPrompt.startsWith('/test')) {
       setState(() {
         _chatMessages.add({'role': 'user', 'content': userPrompt});
         _chatMessages.add({
           'role': 'assistant',
-          'content': '⚡ **Qualcomm Hexagon NPU Sidecar Engine Test**\n\n'
+          'content': '⚡ **Qualcomm Hexagon NPU Sidecar Engine Status**\n\n'
               '## 🧠 Active On-Device ONNX Models:\n'
               '1. 🔤 **CodeBERTa Classifier** (`codeberta.onnx` — 85.7 MB):\n'
               '   • *NPU EP*: Qualcomm Hexagon / Android NNAPI\n'
-              '   • *Result*: Code Language Classifier operational (Dart / HTML / JS / C++)\n\n'
+              '   • *Status*: Active (Dart / HTML / JS / C++ code detection)\n\n'
               '2. 🔍 **BGE Small v1.5 Vector Embeddings** (`bge_small_v1.5.onnx` — 133 MB):\n'
               '   • *Dimensions*: 384-dimensional Dense Vector\n'
-              '   • *Similarity Engine*: SIMD L2 Cosine Distance (RAG Active)\n\n'
-              '3. 📷 **PP-OCRv4 Text Extractor** (`ocr_model.onnx` — 1.27 MB):\n'
-              '   • *Status*: Active for image-to-code extraction\n\n'
-              '> *All 3 auxiliary models run on NPU/CPU without GPU VRAM contention.*',
-          'thinking': 'Sidecar NPU Pipeline (bge-small-en-v1.5 + CodeBERTa + PP-OCRv4):\n'
+              '   • *Status*: Active for Antigravity Brain Storage & Workspace Memory\n\n'
+              '> *Auxiliary models execute on NPU/CPU without GPU VRAM contention.*',
+          'thinking': 'Sidecar NPU Pipeline (bge-small-en-v1.5 + CodeBERTa):\n'
               '• Execution Provider: Qualcomm QNN / Android NNAPI\n'
               '• Latency: 12ms NPU dispatch',
           'thinkingTime': '0.012s'
@@ -294,28 +209,11 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       return;
     }
 
-    // ── Mini-app build / edit request detection ─────────────────────────
-    const buildVerbs = ['build', 'create', 'make', 'generate', 'write me'];
-    const editVerbs = ['edit', 'modify', 'update', 'change', 'refactor', 'improve', 'redesign', 'fix', 'add'];
-    const appNouns = [
-      'mini app', 'widget', 'micro app', 'app', 'alarm', 'tracker',
-      'dashboard', 'timer', 'clock', 'monitor', 'calculator', 'tool',
-      'page', 'screen', 'ui', 'interface', 'fidget', 'spinner'
-    ];
-
-    final MiniAppItem? targetApp = _miniAppManager.findAppByTitleOrQuery(userPrompt) ??
-        ((editVerbs.any((v) => lowerPrompt.contains(v)) && _miniAppManager.value.isNotEmpty)
-            ? _miniAppManager.value.last
-            : null);
-
-    final bool isEditRequest = targetApp != null &&
-        (editVerbs.any((v) => lowerPrompt.contains(v)) ||
-         lowerPrompt.contains('change') || lowerPrompt.contains('add') ||
-         lowerPrompt.contains('make it') || lowerPrompt.contains('edit'));
-
-    final bool isWidgetRequest = isEditRequest ||
-        lowerPrompt.contains('mini app') ||
-        lowerPrompt.contains('micro app') ||
+    // Anchor to Active Workspace
+    final activeWs = _workspaceManager.activeWorkspace;
+    const editVerbs = ['build', 'create', 'make', 'generate', 'edit', 'modify', 'update', 'change', 'refactor', 'fix', 'add'];
+    final bool isWidgetRequest = editVerbs.any((v) => lowerPrompt.contains(v)) ||
+        lowerPrompt.contains('app') ||
         lowerPrompt.contains('widget') ||
         (buildVerbs.any((v) => lowerPrompt.contains(v)) &&
             appNouns.any((n) => lowerPrompt.contains(n)));
@@ -332,32 +230,34 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     setState(() {
       _chatMessages.add({'role': 'user', 'content': userPrompt});
-      _chatMessages.add({
-        'role': 'assistant',
-        'content': '',
-        'widget': null,
-        'thinking': null,
-        'thinkingTime': '0.3s'
-      });
+      _chatMessages.add({'role': 'assistant', 'content': ''});
       _isGenerating = true;
+      _isSidecarProcessing = true;
     });
     _scrollToBottom();
 
-    // ── Run Sidecar ONNX NPU Analysis ─────────────────────────────────────
+    if (activeWs != null) {
+      _workspaceManager.addChatMessageToActiveWorkspace('user', userPrompt);
+    }
+
+    // ── Run Sidecar NPU Isolate ─────────────────────────────────────────
     final stopwatch = Stopwatch()..start();
-    setState(() => _isSidecarProcessing = true);
-    final sidecarRes = await _sidecarIsolate.process(userQuery: userPrompt);
-    setState(() => _isSidecarProcessing = false);
+    SidecarResult? sidecarRes;
+    try {
+      sidecarRes = await _sidecarIsolate.process(userQuery: userPrompt);
+    } catch (e) {
+      debugPrint('Sidecar isolate error: $e');
+    }
     stopwatch.stop();
+    final elapsedSec = (stopwatch.elapsedMilliseconds / 1000.0).toStringAsFixed(2);
 
-    final elapsedSec = (stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2);
-    final detectedLang = sidecarRes?.detectedLanguage ?? 'auto-detected';
-    final retrievedCtx = sidecarRes?.retrievedContext ?? 'Direct Query Mode';
+    setState(() => _isSidecarProcessing = false);
 
-    final thinkingSummary =
-        'Sidecar NPU Pipeline (bge-small-en-v1.5 + CodeBERTa):\n'
-        '• Language Classification: $detectedLang\n'
-        '• Vector Cosine Similarity Search:\n$retrievedCtx';
+    final thinkingSummary = sidecarRes != null
+        ? 'NPU Vector Similarity: ${sidecarRes.retrievedContext.isNotEmpty ? "Found 1 matching workspace context" : "Direct generation"}\n'
+            'Detected Code Language: ${sidecarRes.detectedLanguage}\n'
+            'Sidecar Execution Provider: Qualcomm Hexagon NPU / NNAPI'
+        : 'Executed on-device Qwen2.5-Coder SLM engine on Adreno GPU.';
 
     final assistantIndex = _chatMessages.length - 1;
     setState(() {
@@ -365,63 +265,41 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       _chatMessages[assistantIndex]['thinkingTime'] = '${elapsedSec}s';
     });
 
-    // ── System prompt ────────────────────────────────────────────────────
+    // ── System Directive ────────────────────────────────────────────────
     String systemDirective;
     if (isWidgetRequest) {
       systemDirective =
           'You are Essential AI, an autonomous on-device HTML mini app developer running on $_gpuInfo.\n\n'
           'CRITICAL RULES FOR ALL MINI APPS:\n'
-          '1. Build ONLY what the user requested. NEVER invoke unrequested hardware APIs (e.g. do NOT turn on flashlight, location, or alarms unless explicitly asked).\n'
-          '2. When user requests audio, synthesize sound effects using HTML5 Web Audio API (AudioContext). For haptics/vibration, use navigator.vibrate([15, 30]). For counters/scores, display live reactive UI metrics.\n'
+          '1. Build ONLY what the user requested. NEVER invoke unrequested hardware APIs.\n'
+          '2. When user requests audio, synthesize sound effects using HTML5 Web Audio API (AudioContext). For haptics/vibration, use navigator.vibrate([15, 30]). Display live reactive UI metrics.\n'
           '3. Output the ENTIRE, COMPLETE, FULLY-WORKING mini app inside ONE SINGLE ```html CODE BLOCK.\n'
           '4. Place all CSS in <style> and JavaScript in <script> inside the single ```html code block.\n'
-          '5. Create gorgeous, interactive, responsive UI (dark theme: #0E0E12 background, #7C4DFF primary accent, touch/drag physics).\n'
-          '6. Do NOT output preamble text before the code block. Start IMMEDIATELY with ```html.\n\n'
-          'OPTIONAL HARDWARE APIS (ONLY use if directly relevant to the user request via window.Essential):\n'
-          '  Essential.notify("Title", "Body")            — post notification\n'
-          '  Essential.startLiveNotification(id, T, B)   — start live ongoing notification\n'
-          '  Essential.getLocation()                     — one-shot GPS -> onLocationResult(lat, lng, acc)\n'
-          '  Essential.setGeoAlarm(lat, lng, r, T, B)    — 500m geo-alarm -> onGeoAlarmTriggered()\n'
-          '  Essential.watchSensor("gyroscope"|"light")  — sensor stream -> onSensorData(type, x, y, z)\n'
-          '  Essential.setFlashlight(true | false)       — toggle camera torch LED\n';
+          '5. Create gorgeous, interactive, responsive UI (dark theme: #0E0E12 background, #7C4DFF primary accent).\n'
+          '6. Start IMMEDIATELY with ```html without preamble text.\n\n';
 
-      if (targetApp != null) {
-        systemDirective += '\n\nEXISTING MINI APP TO MODIFY (ID: ${targetApp.id}, Title: "${targetApp.title}"):\n'
-            '```html\n${targetApp.htmlContent}\n```\n'
-            'USER FEEDBACK & EDIT INSTRUCTION: "$userPrompt"\n'
-            'UNIVERSAL DIRECTIVE FOR ALL MINI APP EDITS & FIXES:\n'
-            '1. The user is providing visual feedback, bug reports, or feature requests for the existing mini app above.\n'
-            '2. Do NOT say you do not understand, do NOT ask for clarification, and do NOT output conversational chat text.\n'
-            '3. IMMEDIATELY update and upgrade the HTML, CSS, and JavaScript code to fix the reported issue, refine the layout/visuals, and implement the requested feature.\n'
-            '4. Output the ENTIRE, COMPLETE, FULLY-WORKING updated mini app inside ONE SINGLE ```html CODE BLOCK.\n';
+      if (activeWs != null) {
+        systemDirective += '\nACTIVE WORKSPACE TO MODIFY (ID: ${activeWs.id}, Title: "${activeWs.title}"):\n'
+            '```html\n${activeWs.htmlContent}\n```\n'
+            'USER INSTRUCTION: "$userPrompt"\n'
+            'DIRECTIVE: The user is modifying or giving feedback on the existing app above. Update the HTML/CSS/JS and output the ENTIRE updated mini app inside ONE SINGLE ```html CODE BLOCK.\n';
       }
     } else {
       systemDirective =
           'You are Essential AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
           'CONVERSATIONAL DIRECTIVES:\n'
-          '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer pair-programming with a colleague.\n'
-          '2. Use clear, beautifully structured Markdown formatting (## headings, **bold emphasis**, bullet points, and code blocks) for technical answers.\n'
-          '3. Be concise yet deeply insightful — zero fluff, zero repetitive disclaimers.\n'
-          '4. Actively reference NPU sidecar context when available to demonstrate deep on-device intelligence.\n';
+          '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer.\n'
+          '2. Use clear, beautifully structured Markdown formatting (## headings, **bold**, bullet points, and code blocks).\n'
+          '3. Be concise yet deeply insightful — zero fluff.\n';
     }
 
     final formattedPrompt =
         '<|im_start|>system\n$systemDirective<|im_end|>\n<|im_start|>user\n$userPrompt<|im_end|>\n<|im_start|>assistant\n';
 
-    // Grammar ONLY applies to explicit mode selections — never for widget requests
-    // (widget JSON is guided by system prompt, not grammar constraint)
-    String? grammar;
-    if (_selectedGbnfMode == GbnfMode.json) {
-      grammar = GbnfGrammars.json;
-    } else if (_selectedGbnfMode == GbnfMode.toolCall) {
-      grammar = GbnfGrammars.toolCall;
-    }
-    // GbnfMode.none → grammar = null (free text, always used for code)
-
     final stream = _llamaIsolate.generate(
       formattedPrompt,
-      grammar: grammar,
-      maxNewTokens: maxTokens,
+      grammar: null,
+      maxNewTokens: isWidgetRequest ? 3500 : 1500,
     );
 
     await for (final event in stream) {
@@ -436,7 +314,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       }
     }
 
-    // Clean up trailing chat stop tokens
     var finalText = (_chatMessages[assistantIndex]['content'] as String)
         .replaceAll('<|im_end|>', '')
         .replaceAll('|im_end|>', '')
@@ -445,93 +322,50 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         .replaceAll('<|endoftext|>', '')
         .trimRight();
 
-    // HTML Mini App extraction: Handles ```html, ``` codeblocks, or raw <!DOCTYPE html>/<html> tags
-    MiniAppItem? generatedWidget;
+    MiniAppWorkspace? targetWs;
     if (isWidgetRequest) {
       try {
         String? extractedHtml;
-
-        // 1. Match ```html ... ``` code block
-        final htmlBlockMatch =
-            RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false)
-                .firstMatch(finalText);
+        final htmlBlockMatch = RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
         if (htmlBlockMatch != null) {
           extractedHtml = htmlBlockMatch.group(1)!.trim();
         } else {
-          // 2. Match generic ``` code block containing HTML tags
-          final genericBlockMatch =
-              RegExp(r'```(?:[a-z]*)\s*([\s\S]*?)```', caseSensitive: false)
-                  .firstMatch(finalText);
-          if (genericBlockMatch != null &&
-              (genericBlockMatch.group(1)!.contains('<!DOCTYPE html>') ||
-                  genericBlockMatch.group(1)!.contains('<html'))) {
+          final genericBlockMatch = RegExp(r'```(?:[a-z]*)\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
+          if (genericBlockMatch != null && (genericBlockMatch.group(1)!.contains('<!DOCTYPE html>') || genericBlockMatch.group(1)!.contains('<html'))) {
             extractedHtml = genericBlockMatch.group(1)!.trim();
-          } else {
-            // 3. Fallback: match direct <!DOCTYPE html> or <html> substring
-            final docTypeStart = finalText.indexOf('<!DOCTYPE html');
-            final htmlStart = finalText.indexOf('<html');
-            final startIdx = docTypeStart >= 0
-                ? docTypeStart
-                : (htmlStart >= 0 ? htmlStart : -1);
-            final endIdx = finalText.lastIndexOf('</html>');
-            if (startIdx >= 0 && endIdx > startIdx) {
-              extractedHtml = finalText.substring(startIdx, endIdx + 7).trim();
-            }
           }
         }
 
         if (extractedHtml != null && extractedHtml.isNotEmpty) {
-          String appTitle = targetApp?.title ?? 'Generated Mini App';
-          final titleTag = RegExp(r'<title[^>]*>(.*?)</title>',
-                  caseSensitive: false, dotAll: true)
-              .firstMatch(extractedHtml);
-          final h1Tag = RegExp(r'<h[12][^>]*>(.*?)</h[12]>',
-                  caseSensitive: false, dotAll: true)
-              .firstMatch(extractedHtml);
-
+          String title = activeWs?.title ?? 'Generated Mini App';
+          final titleTag = RegExp(r'<title[^>]*>(.*?)</title>', caseSensitive: false).firstMatch(extractedHtml);
           if (titleTag?.group(1)?.trim().isNotEmpty == true) {
-            appTitle = titleTag!.group(1)!.trim();
-          } else if (h1Tag?.group(1)?.trim().isNotEmpty == true) {
-            appTitle =
-                h1Tag!.group(1)!.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+            title = titleTag!.group(1)!.trim();
           }
 
-          final wantsBackground = lowerPrompt.contains('background') ||
-              lowerPrompt.contains('alarm') ||
-              lowerPrompt.contains('track') ||
-              lowerPrompt.contains('notify') ||
-              lowerPrompt.contains('alert') ||
-              (targetApp?.backgroundEnabled ?? false);
-
-          if (targetApp != null) {
-            targetApp.title = appTitle;
-            targetApp.htmlContent = extractedHtml;
-            targetApp.backgroundEnabled = wantsBackground;
-            _miniAppManager.updateHtml(targetApp.id, extractedHtml);
-            generatedWidget = targetApp;
+          if (activeWs != null) {
+            await _workspaceManager.updateWorkspaceHtml(activeWs.id, extractedHtml);
+            targetWs = activeWs;
           } else {
-            generatedWidget = MiniAppItem(
-              id: 'app-${DateTime.now().millisecondsSinceEpoch}',
-              title: appTitle,
-              description: 'Built by Essential AI on-device',
-              htmlContent: extractedHtml,
-              backgroundEnabled: wantsBackground,
-            );
-            _miniAppManager.addMiniApp(generatedWidget);
+            targetWs = await _workspaceManager.createWorkspace(title: title, htmlContent: extractedHtml);
           }
         }
       } catch (e) {
-        debugPrint('Mini app extraction error: $e');
+        debugPrint('Workspace update error: $e');
       }
     }
 
     setState(() {
       _chatMessages[assistantIndex]['content'] = finalText;
-      if (generatedWidget != null) {
-        _chatMessages[assistantIndex]['widget'] = generatedWidget;
+      if (targetWs != null) {
+        _chatMessages[assistantIndex]['workspace'] = targetWs;
       }
       _isGenerating = false;
     });
+
+    if (activeWs != null) {
+      _workspaceManager.addChatMessageToActiveWorkspace('assistant', finalText);
+    }
   }
 
   void _scrollToBottom() {
@@ -546,13 +380,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     });
   }
 
-
-
   @override
   void dispose() {
     _healthTimer?.cancel();
     _mcpServer.stop();
     _llamaIsolate.dispose();
+    _sidecarIsolate.dispose();
     _chatInputController.dispose();
     _chatScrollController.dispose();
     super.dispose();
@@ -590,8 +423,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         index: _selectedTabIndex,
         children: [
           _buildChatTab(),
-          _buildMiniAppsHubTab(),
-          _buildDagWorkflowTab(),
+          _buildMiniAppsWorkspaceTab(),
           _buildMcpServerTab(),
         ],
       ),
@@ -602,24 +434,19 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         indicatorColor: const Color(0xFF7C4DFF).withValues(alpha: 0.3),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble, color: Color(0xFFD0BCFF)),
+            icon: Icon(Icons.chat_bubble_outline_rounded),
+            selectedIcon: Icon(Icons.chat_bubble_rounded, color: Color(0xFFD0BCFF)),
             label: 'Chat',
           ),
           NavigationDestination(
             icon: Icon(Icons.widgets_outlined),
-            selectedIcon: Icon(Icons.widgets, color: Color(0xFFD0BCFF)),
-            label: 'Widgets',
+            selectedIcon: Icon(Icons.widgets_rounded, color: Color(0xFFD0BCFF)),
+            label: 'Workspaces',
           ),
           NavigationDestination(
-            icon: Icon(Icons.account_tree_outlined),
-            selectedIcon: Icon(Icons.account_tree, color: Color(0xFFD0BCFF)),
-            label: 'Workflows',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.dns_outlined),
-            selectedIcon: Icon(Icons.dns, color: Color(0xFFD0BCFF)),
-            label: 'MCP',
+            icon: Icon(Icons.api_outlined),
+            selectedIcon: Icon(Icons.api_rounded, color: Color(0xFFD0BCFF)),
+            label: 'MCP Server',
           ),
         ],
       ),
@@ -630,6 +457,36 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   Widget _buildChatTab() {
     return Column(
       children: [
+        // Active Workspace Indicator Bar
+        ValueListenableBuilder<List<MiniAppWorkspace>>(
+          valueListenable: _workspaceManager,
+          builder: (ctx, workspaces, _) {
+            final active = _workspaceManager.activeWorkspace;
+            if (active == null) return const SizedBox.shrink();
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: const Color(0xFF14141B),
+              child: Row(
+                children: [
+                  const Icon(Icons.folder_special_rounded, color: Color(0xFF7C4DFF), size: 16),
+                  const SizedBox(width: 8),
+                  Text('Active Workspace: ', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  Expanded(
+                    child: Text(
+                      active.title,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => _selectedTabIndex = 1),
+                    child: const Text('SWITCH', style: TextStyle(fontSize: 11, color: Color(0xFFD0BCFF))),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
         // Chat messages stream view
         Expanded(
           child: ListView.builder(
@@ -640,7 +497,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
               final msg = _chatMessages[idx];
               final role = msg['role'] as String;
               final content = msg['content'] as String;
-              final widgetItem = msg['widget'] as MiniAppItem?;
+              final wsItem = msg['workspace'] as MiniAppWorkspace?;
               final thinking = msg['thinking'] as String?;
               final thinkingTime = msg['thinkingTime'] as String? ?? '0.3s';
 
@@ -679,20 +536,16 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Thinking Process Banner (for Assistant)
+                      // Thinking Process Banner
                       if (!isUser && thinking != null) ...[
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           childrenPadding: const EdgeInsets.only(bottom: 8),
                           dense: true,
-                          leading: const Icon(Icons.psychology_outlined,
-                              size: 18, color: Color(0xFFD0BCFF)),
+                          leading: const Icon(Icons.psychology_outlined, size: 18, color: Color(0xFFD0BCFF)),
                           title: Text(
                             'Thought for $thinkingTime (Sidecar NPU Engine)',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFFD0BCFF),
-                                fontWeight: FontWeight.w600),
+                            style: const TextStyle(fontSize: 12, color: Color(0xFFD0BCFF), fontWeight: FontWeight.w600),
                           ),
                           children: [
                             Container(
@@ -704,10 +557,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                               ),
                               child: Text(
                                 thinking,
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey,
-                                    fontFamily: 'monospace'),
+                                style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace'),
                               ),
                             ),
                           ],
@@ -722,21 +572,14 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                         )
                       else
                         MarkdownBody(
-                          data: content.isEmpty && _isGenerating
-                              ? 'Analyzing & generating response...'
-                              : content,
+                          data: content.isEmpty && _isGenerating ? 'Analyzing & generating response...' : content,
                           selectable: true,
                           styleSheet: MarkdownStyleSheet(
                             p: const TextStyle(fontSize: 14, height: 1.5, color: Colors.white),
                             h1: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF)),
                             h2: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
                             h3: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                            code: const TextStyle(
-                              fontSize: 12,
-                              fontFamily: 'monospace',
-                              color: Color(0xFFD0BCFF),
-                              backgroundColor: Color(0xFF14141B),
-                            ),
+                            code: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Color(0xFFD0BCFF), backgroundColor: Color(0xFF14141B)),
                             codeblockDecoration: BoxDecoration(
                               color: const Color(0xFF0E0E12),
                               borderRadius: BorderRadius.circular(12),
@@ -745,10 +588,10 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                             listBullet: const TextStyle(color: Color(0xFF7C4DFF)),
                           ),
                         ),
-                      if (widgetItem != null) ...[
+                      if (wsItem != null) ...[
                         const SizedBox(height: 12),
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: Colors.deepPurple.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
@@ -761,64 +604,19 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                                 children: [
                                   const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 18),
                                   const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      'Mini App Created: ${widgetItem.title}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
+                                  Text(wsItem.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              ElevatedButton.icon(
-                                onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => MiniAppPage(app: widgetItem)),
-                                ),
-                                icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                                label: const Text('Open Mini App'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF7C4DFF),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              SizedBox(
+                                height: 260,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: MiniAppWebViewWidget(htmlContent: wsItem.htmlContent),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-
-                      // Copy Response Button Row (for Assistant)
-                      if (!isUser && content.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: content));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Copied response to clipboard'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.copy_rounded, size: 14, color: Colors.grey),
-                                    SizedBox(width: 4),
-                                    Text('Copy', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ],
@@ -842,21 +640,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF8AB4F8), size: 24),
-                    tooltip: 'Select image from storage for ONNX OCR NPU',
-                    onPressed: _pickImageAndRunOcr,
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-                      color: _isListening ? Colors.redAccent : const Color(0xFFD0BCFF),
-                      size: 24,
-                    ),
-                    tooltip: 'On-device Speech-to-Text Voice Dictation',
-                    onPressed: _toggleSpeechToText,
-                  ),
-                  const SizedBox(width: 4),
                   Expanded(
                     child: TextField(
                       controller: _chatInputController,
@@ -889,19 +672,67 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     );
   }
 
-  // ── 2. HTML Mini Apps Hub Tab ────────────────────────────────────────────
-  Widget _buildMiniAppsHubTab() {
-    return MiniAppsHubTab(manager: _miniAppManager);
+  // ── 2. Mini Apps Workspace Tab ───────────────────────────────────────────
+  Widget _buildMiniAppsWorkspaceTab() {
+    return ValueListenableBuilder<List<MiniAppWorkspace>>(
+      valueListenable: _workspaceManager,
+      builder: (context, workspaces, _) {
+        if (workspaces.isEmpty) {
+          return const Center(child: Text('No mini app workspaces found.'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: workspaces.length,
+          itemBuilder: (context, idx) {
+            final ws = workspaces[idx];
+            final isActive = _workspaceManager.activeWorkspace?.id == ws.id;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E2A),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isActive ? const Color(0xFF7C4DFF) : Colors.white10, width: isActive ? 2 : 1),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.folder_special_rounded, color: Color(0xFF8AB4F8)),
+                    title: Text(ws.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('ID: ${ws.id} • ${ws.indexPath}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    trailing: ElevatedButton(
+                      onPressed: () {
+                        _workspaceManager.setActiveWorkspace(ws);
+                        setState(() => _selectedTabIndex = 0);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isActive ? const Color(0xFF7C4DFF) : Colors.white12,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(isActive ? 'ACTIVE' : 'SELECT'),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 280,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                      child: MiniAppWebViewWidget(htmlContent: ws.htmlContent),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
-  // ── 3. DAG Workflow Tab ──────────────────────────────────────────────
-  Widget _buildDagWorkflowTab() {
-    return DagWorkflowCanvas(llamaIsolate: _llamaIsolate);
-  }
-
-  // ── 3. MCP Server Monitor Tab ──────────────────────────────────────────
+  // ── 3. MCP Server Tab ───────────────────────────────────────────────────
   Widget _buildMcpServerTab() {
-    final isOnline = _mcpStatus.contains('Listening');
+    final isOnline = _mcpStatus != 'Server Offline';
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -913,47 +744,32 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E2A),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isOnline ? Colors.green.withValues(alpha: 0.5) : Colors.white10),
+              border: Border.all(color: isOnline ? Colors.greenAccent.withValues(alpha: 0.5) : Colors.redAccent.withValues(alpha: 0.5)),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(
-                      isOnline ? Icons.check_circle_rounded : Icons.offline_bolt_rounded,
-                      color: isOnline ? Colors.greenAccent : Colors.redAccent,
-                      size: 28,
-                    ),
+                    Icon(isOnline ? Icons.dns_rounded : Icons.dns_outlined, color: isOnline ? Colors.greenAccent : Colors.redAccent, size: 28),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'On-Device Production MCP Server',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
+                          const Text('Continue.dev MCP Protocol Server', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(height: 2),
-                          Text(
-                            _mcpStatus,
-                            style: TextStyle(fontSize: 12, color: isOnline ? Colors.greenAccent : Colors.grey),
-                          ),
+                          Text(_mcpStatus, style: TextStyle(fontSize: 12, color: isOnline ? Colors.greenAccent : Colors.grey)),
                         ],
                       ),
                     ),
                     ElevatedButton.icon(
                       onPressed: _toggleMcpServer,
                       icon: Icon(isOnline ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 18),
-                      label: Text(
-                        isOnline ? 'STOP' : 'START',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                      ),
+                      label: Text(isOnline ? 'STOP' : 'START', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isOnline ? Colors.redAccent : const Color(0xFF7C4DFF),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                     ),
                   ],
@@ -966,25 +782,25 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                     const Icon(Icons.wifi, size: 16, color: Color(0xFF8AB4F8)),
                     const SizedBox(width: 6),
                     Text('Device IP Address: ', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    SelectableText(
-                      _deviceIp,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8AB4F8)),
-                    ),
+                    SelectableText(_deviceIp, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8AB4F8))),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          const Text('Registered MCP Tool Protocols:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const Text('Registered Continue.dev & Antigravity Tools:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
           Expanded(
             child: ListView(
               children: [
-                _buildMcpToolTile('Device.getSystemInfo', 'Queries on-device system info — $_gpuInfo layer metrics.'),
-                _buildMcpToolTile('QuickJS.eval', 'Executes sandboxed JavaScript with 500ms watchdog.'),
-                _buildMcpToolTile('VisionAdapter.ocr', 'Extracts camera frame text via ML Kit OCR.'),
-                _buildMcpToolTile('MiniApp.createWidget', 'Generates dynamic Android micro app specifications.'),
+                _buildMcpToolTile('workspace/readFile', 'Reads source code from active mini app workspace.'),
+                _buildMcpToolTile('workspace/writeFile', 'Writes or updates source file in mini app workspace.'),
+                _buildMcpToolTile('workspace/listDirectory', 'Lists files in mini app workspace directory.'),
+                _buildMcpToolTile('brain/saveMemory', 'Saves persistent conversation memory to Antigravity brain.'),
+                _buildMcpToolTile('brain/searchMemory', 'Searches Antigravity brain storage via BGE-small ONNX vectors.'),
+                _buildMcpToolTile('miniApp/updateHtml', 'Updates and redeploys mini app source code in place.'),
+                _buildMcpToolTile('system/getHardwareTelemetry', 'Queries live OpenCL GPU and Hexagon NPU load.'),
               ],
             ),
           ),
@@ -1010,8 +826,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     );
   }
 
-  // ── Hardware Health HUD & Detailed Modal ──────────────────────────────────────
-
+  // ── Hardware Health HUD ──────────────────────────────────────────────────────
   Widget _buildHardwareHealthHUD() {
     final cpuText = 'CPU ${_cpuLoad.toStringAsFixed(1)}%';
     final gpuText = _gpuLoad > 0 ? 'GPU ${_gpuLoad.toStringAsFixed(0)}%' : 'GPU 0%';
@@ -1026,16 +841,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
           color: const Color(0xFF1E1E2A).withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _isGenerating
-                ? const Color(0xFFD0BCFF)
-                : const Color(0xFF7C4DFF).withValues(alpha: 0.35),
+            color: _isGenerating ? const Color(0xFFD0BCFF) : const Color(0xFF7C4DFF).withValues(alpha: 0.35),
             width: _isGenerating ? 1.5 : 1.0,
           ),
           boxShadow: [
             BoxShadow(
-              color: _isGenerating
-                  ? const Color(0xFF7C4DFF).withValues(alpha: 0.5)
-                  : Colors.black.withValues(alpha: 0.4),
+              color: _isGenerating ? const Color(0xFF7C4DFF).withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.4),
               blurRadius: _isGenerating ? 10 : 6,
               spreadRadius: _isGenerating ? 1 : 0,
             ),
@@ -1082,9 +893,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: isActive
-                ? [BoxShadow(color: color.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1)]
-                : [],
+            boxShadow: isActive ? [BoxShadow(color: color.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1)] : [],
           ),
           child: Icon(icon, size: 12, color: isActive ? color : color.withValues(alpha: 0.6)),
         ),

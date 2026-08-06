@@ -680,3 +680,37 @@ class MiniAppCard extends StatelessWidget {
     );
   }
 }
+
+class MiniAppWebViewWidget extends StatefulWidget {
+  final String htmlContent;
+  const MiniAppWebViewWidget({super.key, required this.htmlContent});
+
+  @override
+  State<MiniAppWebViewWidget> createState() => _MiniAppWebViewWidgetState();
+}
+
+class _MiniAppWebViewWidgetState extends State<MiniAppWebViewWidget> {
+  late final WebViewController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF0E0E12))
+      ..loadHtmlString(widget.htmlContent);
+  }
+
+  @override
+  void didUpdateWidget(covariant MiniAppWebViewWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.htmlContent != widget.htmlContent) {
+      _controller.loadHtmlString(widget.htmlContent);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WebViewWidget(controller: _controller);
+  }
+}

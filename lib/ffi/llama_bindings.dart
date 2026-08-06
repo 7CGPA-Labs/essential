@@ -79,9 +79,4 @@ class LlamaCppNative {
   static final EssentialFreeGenerationDart freeGeneration = _lib
       .lookup<ffi.NativeFunction<EssentialFreeGenerationC>>('essential_free_generation')
       .asFunction();
-
-  // QuickJS sandbox
-  static final QuickJSExecuteSandboxDart executeSandbox = _lib
-      .lookup<ffi.NativeFunction<QuickJSExecuteSandboxC>>('quickjs_execute_sandbox')
-      .asFunction();
 }
