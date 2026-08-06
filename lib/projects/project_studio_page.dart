@@ -91,12 +91,26 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
         .trimRight();
 
     String? updatedHtml;
-    final match = RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
-    if (match != null) {
-      updatedHtml = match.group(1)!.trim();
+    final htmlBlockMatch = RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
+    if (htmlBlockMatch != null) {
+      updatedHtml = htmlBlockMatch.group(1)!.trim();
+    } else {
+      final genericBlockMatch = RegExp(r'```(?:[a-z]*)\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
+      if (genericBlockMatch != null && (genericBlockMatch.group(1)!.contains('<!DOCTYPE html>') || genericBlockMatch.group(1)!.contains('<html'))) {
+        updatedHtml = genericBlockMatch.group(1)!.trim();
+      } else {
+        final docTypeStart = finalText.indexOf('<!DOCTYPE html');
+        final htmlStart = finalText.indexOf('<html');
+        final startIdx = docTypeStart >= 0 ? docTypeStart : (htmlStart >= 0 ? htmlStart : -1);
+        final endIdx = finalText.lastIndexOf('</html>');
+        if (startIdx >= 0 && endIdx > startIdx) {
+          updatedHtml = finalText.substring(startIdx, endIdx + 7).trim();
+        }
+      }
     }
 
     if (updatedHtml != null && updatedHtml.isNotEmpty) {
+      widget.project.htmlContent = updatedHtml;
       await widget.projectManager.updateProjectHtml(widget.project.id, updatedHtml);
     }
 
@@ -141,8 +155,8 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.project.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const Text('Split-Screen Project Studio', style: TextStyle(fontSize: 11, color: Color(0xFF8AB4F8))),
+            Text(widget.project.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('Split-Screen Project Studio', style: TextStyle(fontSize: 10, color: Color(0xFF8AB4F8))),
           ],
         ),
       ),
@@ -171,7 +185,7 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     itemCount: _messages.length,
                     itemBuilder: (context, idx) {
                       final m = _messages[idx];
@@ -182,19 +196,21 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
                         alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4),
-                          padding: const EdgeInsets.all(12),
-                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
+                          padding: const EdgeInsets.all(10),
+                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
                           decoration: BoxDecoration(
                             color: isUser ? const Color(0xFF7C4DFF) : const Color(0xFF1E1E2A),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: isUser
-                              ? SelectableText(content, style: const TextStyle(fontSize: 13, color: Colors.white))
+                              ? SelectableText(content, style: const TextStyle(fontSize: 12, color: Colors.white))
                               : MarkdownBody(
                                   data: content.isEmpty && _isGenerating ? 'Refining project code...' : content,
                                   styleSheet: MarkdownStyleSheet(
-                                    p: const TextStyle(fontSize: 13, color: Colors.white),
-                                    code: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: Color(0xFFD0BCFF)),
+                                    p: const TextStyle(fontSize: 12, height: 1.4, color: Colors.white),
+                                    h1: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF)),
+                                    h2: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
+                                    code: const TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: Color(0xFFD0BCFF)),
                                   ),
                                 ),
                         ),
@@ -203,16 +219,17 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   color: const Color(0xFF14141B),
                   child: Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: _inputController,
+                          style: const TextStyle(fontSize: 12, color: Colors.white),
                           decoration: const InputDecoration(
                             hintText: 'Request code changes for this project...',
-                            hintStyle: TextStyle(color: Colors.grey, fontSize: 13),
+                            hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
                             border: InputBorder.none,
                           ),
                           onSubmitted: (_) => _sendMessage(),

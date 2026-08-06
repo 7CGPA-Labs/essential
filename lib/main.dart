@@ -568,18 +568,18 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                       if (isUser)
                         SelectableText(
                           content,
-                          style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.white),
+                          style: const TextStyle(fontSize: 12.5, height: 1.4, color: Colors.white),
                         )
                       else
                         MarkdownBody(
                           data: content.isEmpty && _isGenerating ? 'Analyzing & generating response...' : content,
                           selectable: true,
                           styleSheet: MarkdownStyleSheet(
-                            p: const TextStyle(fontSize: 14, height: 1.5, color: Colors.white),
-                            h1: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF)),
-                            h2: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
-                            h3: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                            code: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Color(0xFFD0BCFF), backgroundColor: Color(0xFF14141B)),
+                            p: const TextStyle(fontSize: 12.5, height: 1.4, color: Colors.white),
+                            h1: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF)),
+                            h2: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
+                            h3: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                            code: const TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: Color(0xFFD0BCFF), backgroundColor: Color(0xFF14141B)),
                             codeblockDecoration: BoxDecoration(
                               color: const Color(0xFF0E0E12),
                               borderRadius: BorderRadius.circular(12),
