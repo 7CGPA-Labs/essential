@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
 import 'ffi/sidecar_isolate.dart';
@@ -181,25 +182,28 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
       setState(() => _isSidecarProcessing = true);
 
-      final bytes = await image.readAsBytes();
-      final extractedText =
-          'Extracted Text from image (${image.name}, ${bytes.length} B) via Qualcomm Hexagon NPU PP-OCRv4:\n'
-          '```\n'
-          'SYSTEM_CONFIG_V2 = "OFFLOAD_ALL_LAYERS_TO_NPU"\n'
-          'BATCH_SIZE = 4096\n'
-          'TARGET_DEVICE = "POCO_QUALCOMM_SNAPDRAGON_NPU"\n'
-          'STATUS = 200 OK\n'
-          '```';
+      final inputImage = InputImage.fromFilePath(image.path);
+      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      await textRecognizer.close();
+
+      final String realExtractedText = recognizedText.text.trim();
 
       setState(() {
         _isSidecarProcessing = false;
-        _chatInputController.text = extractedText;
+        if (realExtractedText.isNotEmpty) {
+          _chatInputController.text = realExtractedText;
+        } else {
+          _chatInputController.text = '[OCR NPU Vision: No readable text detected in image ${image.name}]';
+        }
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('⚡ ONNX OCR NPU processed ${image.name} successfully!'),
+            content: Text(realExtractedText.isNotEmpty
+                ? '⚡ On-device OCR NPU extracted text from ${image.name} successfully!'
+                : 'No text detected in selected image'),
             backgroundColor: const Color(0xFF7C4DFF),
           ),
         );
@@ -208,7 +212,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       setState(() => _isSidecarProcessing = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OCR Image Selection Error: $e')),
+          SnackBar(content: Text('OCR Image Extraction Error: $e')),
         );
       }
     }
