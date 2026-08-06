@@ -138,14 +138,29 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
   Future<void> _initializeLocalSLM() async {
     _addSystemMessage('Initializing CodingSaathi SLM Engine...');
     _mcpServer.addLog('SLM: Initializing local Qwen2.5-Coder model...');
-    const modelPath = '/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf';
+    
+    final candidatePaths = [
+      '/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf',
+      '/sdcard/Download/models/qwen2.5-coder-1.5b.gguf',
+      '/sdcard/Download/qwen2.5-coder-1.5b.gguf',
+      '/storage/emulated/0/Download/models/qwen2.5-coder-1.5b.gguf',
+      '/storage/emulated/0/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf',
+    ];
 
-    final file = File(modelPath);
-    if (await file.exists()) {
+    String? modelPath;
+    for (final p in candidatePaths) {
+      if (await File(p).exists()) {
+        modelPath = p;
+        break;
+      }
+    }
+
+    if (modelPath != null) {
       _addSystemMessage('Loading Qwen2.5-Coder (GGUF Q4_K_M) on Adreno GPU...');
+      _mcpServer.addLog('SLM: Found model file at $modelPath');
       final ok = await () async {
         try {
-          await _llamaIsolate.init(modelPath, 1, 6);
+          await _llamaIsolate.init(modelPath!, 1, 6);
           return true;
         } catch (_) {
           return false;
@@ -160,10 +175,12 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
       }
     } else {
       _addSystemMessage(
-        '⚠️ Qwen2.5-Coder model not found at:\n$modelPath\n\n'
-        'Please ensure the model file is pushed to device storage.',
+        '⚠️ Qwen2.5-Coder model not found.\n\n'
+        'Searched locations:\n'
+        '1. /sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf\n'
+        '2. /sdcard/Download/models/qwen2.5-coder-1.5b.gguf',
       );
-      _mcpServer.addLog('SLM: Model file missing at $modelPath');
+      _mcpServer.addLog('SLM: Model file missing in candidate paths.');
     }
   }
 
@@ -960,9 +977,10 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
           ),
           const SizedBox(height: 20),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Server & SLM Live Console Logs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Expanded(
+                child: Text('Server & SLM Live Console Logs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
               IconButton(
                 icon: const Icon(Icons.clear_all_rounded, size: 20, color: Colors.grey),
                 onPressed: () => setState(() => _serverLogs.clear()),
@@ -992,12 +1010,9 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SelectableText(
-                              log,
-                              style: TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: logColor),
-                            ),
+                          child: SelectableText(
+                            log,
+                            style: TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: logColor, height: 1.3),
                           ),
                         );
                       },
