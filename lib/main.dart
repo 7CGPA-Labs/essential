@@ -11,6 +11,7 @@ import 'ffi/sidecar_bindings.dart';
 import 'mcp/mcp_server.dart';
 import 'projects/project_manager.dart';
 import 'projects/project_studio_page.dart';
+import 'services/web_search_service.dart';
 import 'mini_apps/mini_app_webview.dart';
 import 'mini_apps/mini_app_manager.dart';
 import 'mini_apps/mini_app_service.dart';
@@ -201,6 +202,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     });
     _scrollToBottom();
 
+    // ── 1. Universal ONNX NLP Tokenization & CodeBERTa / BGE Classification ───
     final stopwatch = Stopwatch()..start();
     SidecarResult? sidecarRes;
     try {
@@ -213,10 +215,25 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     setState(() => _isSidecarProcessing = false);
 
+    // ── 2. Universal Live Web Search Retrieval for All Questions ─────────────
+    String webSearchContext = '';
+    _mcpServer.addLog('SEARCH: ONNX NLP Tokenized -> Querying live web search for "$userPrompt"...');
+    try {
+      final searchResults = await WebSearchService.searchWeb(userPrompt);
+      if (searchResults.isNotEmpty) {
+        webSearchContext = '\nLIVE INTERNET SEARCH RESULTS (ONNX NLP Retrieved):\n$searchResults\n';
+        _mcpServer.addLog('SEARCH: Live web search information successfully retrieved.');
+      }
+    } catch (e) {
+      debugPrint('Universal web search error: $e');
+    }
+
     final thinkingSummary = sidecarRes != null
-        ? 'NPU Vector Similarity: ${sidecarRes.retrievedContext.isNotEmpty ? "Retrieved codebase context" : "Direct generation"}\n'
-            'Detected Code Language: ${sidecarRes.detectedLanguage}\n'
-            'Sidecar Execution Provider: Qualcomm Hexagon NPU / NNAPI'
+        ? 'ONNX NLP Models: bge_small_v1.5.onnx + codeberta.onnx\n'
+            'Token Category: ${sidecarRes.detectedLanguage}\n'
+            'Vector Context: ${sidecarRes.retrievedContext.isNotEmpty ? "Codebase Context Retained" : "Universal Web Search"}\n'
+            'Web Search Status: ${webSearchContext.isNotEmpty ? "Live Internet Results Injected" : "Offline Synthesis"}\n'
+            'Execution Provider: Qualcomm Hexagon NPU / NNAPI'
         : 'Executed on-device Qwen2.5-Coder SLM engine on Adreno GPU.';
 
     final assistantIndex = _chatMessages.length - 1;
@@ -227,10 +244,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     final systemDirective =
         'You are Essential AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
+        '$webSearchContext'
         'CONVERSATIONAL DIRECTIVES:\n'
         '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer.\n'
-        '2. Use clear, beautifully structured Markdown formatting (## headings, **bold**, bullet points, and code blocks).\n'
-        '3. Be concise yet deeply insightful — zero fluff.\n';
+        '2. When live internet search results are provided above, comb through them thoroughly and explain the concept as naturally and humanly as possible.\n'
+        '3. Use clear, beautifully structured Markdown formatting (## headings, **bold**, bullet points, and code blocks).\n'
+        '4. Be concise yet deeply insightful — zero fluff, zero repetitive disclaimers.\n';
 
     final formattedPrompt =
         '<|im_start|>system\n$systemDirective<|im_end|>\n<|im_start|>user\n$userPrompt<|im_end|>\n<|im_start|>assistant\n';
