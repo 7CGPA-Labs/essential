@@ -5,6 +5,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:path_provider/path_provider.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
 import 'ffi/sidecar_isolate.dart';
@@ -949,60 +950,67 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
               children: [
                 Row(
                   children: [
-                    Icon(isOnline ? Icons.dns_rounded : Icons.dns_outlined, color: isOnline ? Colors.greenAccent : Colors.redAccent, size: 28),
-                    const SizedBox(width: 12),
+                    Icon(isOnline ? Icons.dns_rounded : Icons.dns_outlined, color: isOnline ? Colors.greenAccent : Colors.redAccent, size: 24),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Continue.dev MCP Protocol Server', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const Text('Continue.dev MCP Server', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                           const SizedBox(height: 2),
-                          Text(_mcpStatus, style: TextStyle(fontSize: 12, color: isOnline ? Colors.greenAccent : Colors.grey)),
+                          Text(_mcpStatus, style: TextStyle(fontSize: 11, color: isOnline ? Colors.greenAccent : Colors.grey)),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 6),
                     ElevatedButton.icon(
                       onPressed: _toggleMcpServer,
-                      icon: Icon(isOnline ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 18),
-                      label: Text(isOnline ? 'STOP' : 'START', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+                      icon: Icon(isOnline ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 16),
+                      label: Text(isOnline ? 'STOP' : 'START', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isOnline ? Colors.redAccent : const Color(0xFF7C4DFF),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const Divider(height: 1, color: Colors.white10),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     const Icon(Icons.wifi, size: 16, color: Color(0xFF8AB4F8)),
                     const SizedBox(width: 6),
-                    Text('Device IP Address: ', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    SelectableText(_deviceIp, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8AB4F8))),
+                    const Text('Device IP: ', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    Expanded(
+                      child: SelectableText(
+                        _deviceIp,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF8AB4F8)),
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Row(
             children: [
               const Expanded(
-                child: Text('Server & SLM Live Console Logs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                child: Text('Server & SLM Live Console Logs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
               IconButton(
-                icon: const Icon(Icons.clear_all_rounded, size: 20, color: Colors.grey),
+                icon: const Icon(Icons.clear_all_rounded, size: 18, color: Colors.grey),
                 onPressed: () => setState(() => _serverLogs.clear()),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFF0E0E12),
                 borderRadius: BorderRadius.circular(12),
