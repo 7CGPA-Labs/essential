@@ -24,16 +24,16 @@ void main() async {
   } catch (e) {
     debugPrint('Background service initialization deferred: $e');
   }
-  runApp(const GeminiEssentialApp());
+  runApp(const CodingSaathiApp());
 }
 
-class GeminiEssentialApp extends StatelessWidget {
-  const GeminiEssentialApp({super.key});
+class CodingSaathiApp extends StatelessWidget {
+  const CodingSaathiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Essential Gemini AI',
+      title: 'CodingSaathi AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0E0E12),
@@ -44,19 +44,19 @@ class GeminiEssentialApp extends StatelessWidget {
           surface: Color(0xFF1E1E2A),
         ),
       ),
-      home: const GeminiMainSurface(),
+      home: const CodingSaathiMainSurface(),
     );
   }
 }
 
-class GeminiMainSurface extends StatefulWidget {
-  const GeminiMainSurface({super.key});
+class CodingSaathiMainSurface extends StatefulWidget {
+  const CodingSaathiMainSurface({super.key});
 
   @override
-  State<GeminiMainSurface> createState() => _GeminiMainSurfaceState();
+  State<CodingSaathiMainSurface> createState() => _CodingSaathiMainSurfaceState();
 }
 
-class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
+class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
   final LlamaIsolateWrapper _llamaIsolate = LlamaIsolateWrapper();
   final SidecarIsolateService _sidecarIsolate = SidecarIsolateService();
   final ProjectManager _projectManager = ProjectManager();
@@ -135,11 +135,18 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   }
 
   Future<void> _initializeLocalSLM() async {
-    _addSystemMessage('Initializing Essential SLM Engine...');
+    _addSystemMessage('Initializing CodingSaathi SLM Engine...');
     _mcpServer.addLog('SLM: Initializing local Qwen2.5-Coder model...');
-    const modelPath = '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
+    final modelPath1 = '/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf';
+    final modelPath2 = '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
 
-    final file = File(modelPath);
+    var file = File(modelPath1);
+    var modelPath = modelPath1;
+    if (!await file.exists()) {
+      file = File(modelPath2);
+      modelPath = modelPath2;
+    }
+
     if (await file.exists()) {
       _addSystemMessage('Loading Qwen2.5-Coder (GGUF Q4_K_M) on Adreno GPU...');
       final ok = await () async {
@@ -159,10 +166,10 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       }
     } else {
       _addSystemMessage(
-        '⚠️ Qwen2.5-Coder model not found at:\n$modelPath\n\n'
+        '⚠️ Qwen2.5-Coder model not found at:\n$modelPath1\n\n'
         'Please ensure the model file is pushed to device storage.',
       );
-      _mcpServer.addLog('SLM: Model file missing at $modelPath');
+      _mcpServer.addLog('SLM: Model file missing at $modelPath1');
     }
   }
 
@@ -288,7 +295,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     });
 
     final systemDirective =
-        'You are Essential AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
+        'You are CodingSaathi AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
         '$webSearchContext'
         'CONVERSATIONAL DIRECTIVES:\n'
         '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer.\n'
@@ -503,7 +510,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                 colors: [Color(0xFF8AB4F8), Color(0xFFD0BCFF), Color(0xFF7C4DFF)],
               ).createShader(bounds),
               child: const Text(
-                'Essential AI',
+                'CodingSaathi AI',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
               ),
             ),
@@ -675,8 +682,8 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                     child: TextField(
                       controller: _chatInputController,
                       decoration: const InputDecoration(
-                        hintText: 'Ask Gemini Essential AI...',
-                        hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                        hintText: 'Ask CodingSaathi AI...',
+                        hintStyle: TextStyle(color: Colors.grey, fontSize: 13),
                         border: InputBorder.none,
                       ),
                       onSubmitted: (_) {

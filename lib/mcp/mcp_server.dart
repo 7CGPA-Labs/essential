@@ -115,7 +115,7 @@ class McpServer {
         : '';
 
     final formattedPrompt =
-        '<|im_start|>system\nYou are Essential AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.\n$wsContext<|im_end|>\n'
+        '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.\n$wsContext<|im_end|>\n'
         '<|im_start|>user\n$userMessage<|im_end|>\n'
         '<|im_start|>assistant\n';
 

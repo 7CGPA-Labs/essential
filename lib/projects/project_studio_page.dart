@@ -55,7 +55,7 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
     widget.projectManager.addChatMessageToProject(widget.project.id, 'user', text);
 
     final systemDirective =
-        'You are Essential AI, an expert HTML mini app pair-programmer running 100% on-device on ${widget.gpuInfo}.\n\n'
+        'You are CodingSaathi AI, an expert HTML mini app pair-programmer running 100% on-device on ${widget.gpuInfo}.\n\n'
         'TARGET PROJECT: "${widget.project.title}" (ID: ${widget.project.id})\n'
         'CURRENT HTML CODE:\n'
         '```html\n${widget.project.htmlContent}\n```\n\n'
