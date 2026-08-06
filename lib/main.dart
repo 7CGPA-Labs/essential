@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
 import 'ffi/sidecar_isolate.dart';
@@ -73,6 +74,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   final ScrollController _chatScrollController = ScrollController();
   bool _isGenerating = false;
   bool _isSidecarProcessing = false;
+  bool _isHudExpanded = false;
   double _cpuLoad = 3.2;
   double _gpuLoad = 0.0;
   double _npuLoad = 0.0;
@@ -275,12 +277,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       }
     } else {
       systemDirective =
-          'You are Essential AI, an expert Senior Staff Software Engineer '
-          'running 100% on-device on $_gpuInfo.\n'
-          'Directives:\n'
-          '1. Provide production-ready clean code.\n'
-          '2. Concise, technical explanations.\n'
-          '3. Wrap code in standard markdown blocks.';
+          'You are Essential AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
+          'CONVERSATIONAL DIRECTIVES:\n'
+          '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer pair-programming with a colleague.\n'
+          '2. Use clear, beautifully structured Markdown formatting (## headings, **bold emphasis**, bullet points, and code blocks) for technical answers.\n'
+          '3. Be concise yet deeply insightful — zero fluff, zero repetitive disclaimers.\n'
+          '4. Actively reference NPU sidecar context when available to demonstrate deep on-device intelligence.\n';
     }
 
     final formattedPrompt =
@@ -593,12 +595,36 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                         const SizedBox(height: 6),
                       ],
 
-                      SelectableText(
-                        content.isEmpty && _isGenerating && !isUser
-                            ? 'Analyzing & generating response...'
-                            : content,
-                        style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.white),
-                      ),
+                      if (isUser)
+                        SelectableText(
+                          content,
+                          style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.white),
+                        )
+                      else
+                        MarkdownBody(
+                          data: content.isEmpty && _isGenerating
+                              ? 'Analyzing & generating response...'
+                              : content,
+                          selectable: true,
+                          styleSheet: MarkdownStyleSheet(
+                            p: const TextStyle(fontSize: 14, height: 1.5, color: Colors.white),
+                            h1: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF)),
+                            h2: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
+                            h3: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                            code: const TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'monospace',
+                              color: Color(0xFFD0BCFF),
+                              backgroundColor: Color(0xFF14141B),
+                            ),
+                            codeblockDecoration: BoxDecoration(
+                              color: const Color(0xFF0E0E12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            listBullet: const TextStyle(color: Color(0xFF7C4DFF)),
+                          ),
+                        ),
                       if (widgetItem != null) ...[
                         const SizedBox(height: 12),
                         Container(
@@ -860,7 +886,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       onTap: () => _showHardwareHealthModal(context),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E2A).withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
@@ -883,11 +909,30 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildBadgeItem(Icons.memory_rounded, cpuText, Colors.cyanAccent, _isGenerating),
-            const SizedBox(width: 6),
-            _buildBadgeItem(Icons.speed_rounded, gpuText, const Color(0xFFD0BCFF), _gpuLoad > 0),
-            const SizedBox(width: 6),
-            _buildBadgeItem(Icons.psychology_rounded, npuText, Colors.greenAccent, _npuLoad > 0),
+            if (_isHudExpanded) ...[
+              _buildBadgeItem(Icons.memory_rounded, cpuText, Colors.cyanAccent, _isGenerating),
+              const SizedBox(width: 6),
+              _buildBadgeItem(Icons.speed_rounded, gpuText, const Color(0xFFD0BCFF), _gpuLoad > 0),
+              const SizedBox(width: 6),
+              _buildBadgeItem(Icons.psychology_rounded, npuText, Colors.greenAccent, _npuLoad > 0),
+            ] else ...[
+              _buildBadgeItem(
+                _isGenerating ? Icons.speed_rounded : Icons.bolt_rounded,
+                _isGenerating ? 'GPU ${_gpuLoad.toStringAsFixed(0)}%' : '⚡ HUD',
+                _isGenerating ? const Color(0xFFD0BCFF) : Colors.cyanAccent,
+                _isGenerating || _isSidecarProcessing,
+              ),
+            ],
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: () => setState(() => _isHudExpanded = !_isHudExpanded),
+              borderRadius: BorderRadius.circular(12),
+              child: Icon(
+                _isHudExpanded ? Icons.chevron_right_rounded : Icons.tune_rounded,
+                size: 14,
+                color: const Color(0xFFD0BCFF),
+              ),
+            ),
           ],
         ),
       ),
