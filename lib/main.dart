@@ -139,17 +139,29 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     _addSystemMessage('Initializing CodingSaathi SLM Engine...');
     _mcpServer.addLog('SLM: Initializing local Qwen2.5-Coder model...');
     
-    final candidatePaths = [
+    final List<String> candidatePaths = [];
+    try {
+      final extDir = await getExternalStorageDirectory();
+      if (extDir != null) {
+        candidatePaths.add('${extDir.path}/models/qwen2.5-coder-1.5b.gguf');
+        candidatePaths.add('${extDir.path}/qwen2.5-coder-1.5b.gguf');
+      }
+    } catch (e) {
+      debugPrint('getExternalStorageDirectory error: $e');
+    }
+
+    candidatePaths.addAll([
       '/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf',
+      '/storage/emulated/0/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf',
       '/sdcard/Download/models/qwen2.5-coder-1.5b.gguf',
       '/sdcard/Download/qwen2.5-coder-1.5b.gguf',
       '/storage/emulated/0/Download/models/qwen2.5-coder-1.5b.gguf',
-      '/storage/emulated/0/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf',
-    ];
+    ]);
 
     String? modelPath;
     for (final p in candidatePaths) {
-      if (await File(p).exists()) {
+      final f = File(p);
+      if (await f.exists()) {
         modelPath = p;
         break;
       }
