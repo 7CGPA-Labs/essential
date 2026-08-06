@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
+import 'ffi/sidecar_isolate.dart';
 import 'grammars/gbnf_grammars.dart';
 import 'mcp/mcp_server.dart';
 import 'mini_apps/mini_app_manager.dart';
@@ -54,7 +56,8 @@ class GeminiMainSurface extends StatefulWidget {
 enum GbnfMode { none, json, toolCall }
 
 class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
-  final _llamaIsolate = LlamaIsolateWrapper();
+  final LlamaIsolateWrapper _llamaIsolate = LlamaIsolateWrapper();
+  final SidecarIsolateService _sidecarIsolate = SidecarIsolateService();
   late McpServer _mcpServer;
   final MiniAppManager _miniAppManager = MiniAppManager();
 
@@ -97,8 +100,10 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   }
 
   Future<void> _initializeLocalSLM() async {
-    const primaryPath = '/sdcard/Android/data/com.example.essential/files/qwen2.5-coder-1.5b.gguf';
-    const fallbackPath = '/sdcard/Download/qwen2.5-coder-1.5b.gguf';
+    const primaryPath =
+        '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
+    const fallbackPath =
+        '/sdcard/Android/data/com.example.essential/files/qwen2.5-coder-1.5b.gguf';
 
     try {
       await _llamaIsolate.init(primaryPath, 1, 1); // backend=1 → BACKEND_OPENCL_GPU (n_gpu_layers=999)
@@ -168,10 +173,36 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     setState(() {
       _chatMessages.add({'role': 'user', 'content': userPrompt});
-      _chatMessages.add({'role': 'assistant', 'content': '', 'widget': null});
+      _chatMessages.add({
+        'role': 'assistant',
+        'content': '',
+        'widget': null,
+        'thinking': null,
+        'thinkingTime': '0.3s'
+      });
       _isGenerating = true;
     });
     _scrollToBottom();
+
+    // ── Run Sidecar ONNX NPU Analysis ─────────────────────────────────────
+    final stopwatch = Stopwatch()..start();
+    final sidecarRes = await _sidecarIsolate.process(userQuery: userPrompt);
+    stopwatch.stop();
+
+    final elapsedSec = (stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2);
+    final detectedLang = sidecarRes?.detectedLanguage ?? 'auto-detected';
+    final retrievedCtx = sidecarRes?.retrievedContext ?? 'Direct Query Mode';
+
+    final thinkingSummary =
+        'Sidecar NPU Pipeline (bge-small-en-v1.5 + CodeBERTa):\n'
+        '• Language Classification: $detectedLang\n'
+        '• Vector Cosine Similarity Search:\n$retrievedCtx';
+
+    final assistantIndex = _chatMessages.length - 1;
+    setState(() {
+      _chatMessages[assistantIndex]['thinking'] = thinkingSummary;
+      _chatMessages[assistantIndex]['thinkingTime'] = '${elapsedSec}s';
+    });
 
     // ── System prompt ────────────────────────────────────────────────────
     String systemDirective;
@@ -217,7 +248,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     }
     // GbnfMode.none → grammar = null (free text, always used for code)
 
-    final assistantIndex = _chatMessages.length - 1;
     final stream = _llamaIsolate.generate(
       formattedPrompt,
       grammar: grammar,
@@ -402,6 +432,8 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
               final role = msg['role'] as String;
               final content = msg['content'] as String;
               final widgetItem = msg['widget'] as MiniAppItem?;
+              final thinking = msg['thinking'] as String?;
+              final thinkingTime = msg['thinkingTime'] as String? ?? '0.3s';
 
               if (role == 'system') {
                 return Center(
@@ -427,7 +459,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 6),
                   padding: const EdgeInsets.all(14),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
                   decoration: BoxDecoration(
                     color: isUser ? const Color(0xFF7C4DFF) : const Color(0xFF1E1E2A),
                     borderRadius: BorderRadius.circular(18).copyWith(
@@ -438,8 +470,46 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Thinking Process Banner (for Assistant)
+                      if (!isUser && thinking != null) ...[
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          childrenPadding: const EdgeInsets.only(bottom: 8),
+                          dense: true,
+                          leading: const Icon(Icons.psychology_outlined,
+                              size: 18, color: Color(0xFFD0BCFF)),
+                          title: Text(
+                            'Thought for $thinkingTime (Sidecar NPU Engine)',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFFD0BCFF),
+                                fontWeight: FontWeight.w600),
+                          ),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF14141B),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: Text(
+                                thinking,
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                    fontFamily: 'monospace'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+
                       SelectableText(
-                        content.isEmpty && _isGenerating && !isUser ? 'Generating Widget & Response...' : content,
+                        content.isEmpty && _isGenerating && !isUser
+                            ? 'Analyzing & generating response...'
+                            : content,
                         style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.white),
                       ),
                       if (widgetItem != null) ...[
@@ -483,6 +553,39 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                               ),
                             ],
                           ),
+                        ),
+                      ],
+
+                      // Copy Response Button Row (for Assistant)
+                      if (!isUser && content.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: content));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Copied response to clipboard'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.copy_rounded, size: 14, color: Colors.grey),
+                                    SizedBox(width: 4),
+                                    Text('Copy', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
