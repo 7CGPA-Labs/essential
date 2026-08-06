@@ -683,7 +683,12 @@ class MiniAppCard extends StatelessWidget {
 
 class MiniAppWebViewWidget extends StatefulWidget {
   final String htmlContent;
-  const MiniAppWebViewWidget({super.key, required this.htmlContent});
+  final Color backgroundColor;
+  const MiniAppWebViewWidget({
+    super.key,
+    required this.htmlContent,
+    this.backgroundColor = Colors.white,
+  });
 
   @override
   State<MiniAppWebViewWidget> createState() => _MiniAppWebViewWidgetState();
@@ -697,7 +702,7 @@ class _MiniAppWebViewWidgetState extends State<MiniAppWebViewWidget> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0E0E12))
+      ..setBackgroundColor(widget.backgroundColor)
       ..loadHtmlString(widget.htmlContent);
   }
 

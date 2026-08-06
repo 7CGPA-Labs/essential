@@ -1,19 +1,18 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
 import 'ffi/sidecar_isolate.dart';
 import 'ffi/sidecar_bindings.dart';
-import 'grammars/gbnf_grammars.dart';
 import 'mcp/mcp_server.dart';
-import 'mini_apps/mini_app_workspace.dart';
+import 'projects/project_manager.dart';
+import 'projects/project_studio_page.dart';
 import 'mini_apps/mini_app_webview.dart';
+import 'mini_apps/mini_app_manager.dart';
 import 'mini_apps/mini_app_service.dart';
 
 void main() async {
@@ -56,12 +55,10 @@ class GeminiMainSurface extends StatefulWidget {
   State<GeminiMainSurface> createState() => _GeminiMainSurfaceState();
 }
 
-enum GbnfMode { none, json, toolCall }
-
 class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   final LlamaIsolateWrapper _llamaIsolate = LlamaIsolateWrapper();
   final SidecarIsolateService _sidecarIsolate = SidecarIsolateService();
-  final MiniAppWorkspaceManager _workspaceManager = MiniAppWorkspaceManager();
+  final ProjectManager _projectManager = ProjectManager();
   late McpServer _mcpServer;
 
   int _selectedTabIndex = 0;
@@ -73,6 +70,8 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   final List<Map<String, dynamic>> _chatMessages = [];
   final TextEditingController _chatInputController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
+  final List<String> _serverLogs = [];
+  final ScrollController _logScrollController = ScrollController();
   bool _isGenerating = false;
   bool _isSidecarProcessing = false;
   bool _isHudExpanded = false;
@@ -80,16 +79,23 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   double _gpuLoad = 0.0;
   double _npuLoad = 0.0;
   Timer? _healthTimer;
-  final GbnfMode _selectedGbnfMode = GbnfMode.none;
 
   @override
   void initState() {
     super.initState();
-    _mcpServer = McpServer(_llamaIsolate, workspaceManager: _workspaceManager);
+    _mcpServer = McpServer(_llamaIsolate);
+    _mcpServer.logStream.listen((logMsg) {
+      if (!mounted) return;
+      setState(() {
+        _serverLogs.add(logMsg);
+      });
+      _scrollToLogBottom();
+    });
+
     _initializeLocalSLM();
     _fetchDeviceIp();
     _loadGpuInfo();
-    _workspaceManager.initializeWorkspaces();
+    _projectManager.initializeProjects();
 
     final rnd = Random();
     _healthTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
@@ -129,6 +135,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
   Future<void> _initializeLocalSLM() async {
     _addSystemMessage('Initializing Essential SLM Engine...');
+    _mcpServer.addLog('SLM: Initializing local Qwen2.5-Coder model...');
     const modelPath = '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
 
     final file = File(modelPath);
@@ -144,15 +151,17 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       }();
       if (ok) {
         _addSystemMessage('⚡ Qwen2.5-Coder 1.5B operational with 100% OpenCL GPU offload!');
-        await _toggleMcpServer();
+        _mcpServer.addLog('SLM: Model loaded on Adreno GPU successfully.');
       } else {
         _addSystemMessage('❌ Error initializing model FFI context.');
+        _mcpServer.addLog('SLM: Error initializing model context.');
       }
     } else {
       _addSystemMessage(
         '⚠️ Qwen2.5-Coder model not found at:\n$modelPath\n\n'
         'Please ensure the model file is pushed to device storage.',
       );
+      _mcpServer.addLog('SLM: Model file missing at $modelPath');
     }
   }
 
@@ -178,55 +187,11 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
   }
 
   void _sendChatMessage() async {
-    if (_chatInputController.text.trim().isEmpty) return;
+    if (_chatInputController.text.trim().isEmpty || _isGenerating) return;
     final userPrompt = _chatInputController.text.trim();
     _chatInputController.clear();
 
-    final lowerPrompt = userPrompt.toLowerCase();
-
-    // ── Direct NPU Benchmark Commands ──────────────────────────────────
-    if (lowerPrompt.startsWith('/npu') || lowerPrompt == 'test npu' || lowerPrompt.contains('test npu') || lowerPrompt.startsWith('/test')) {
-      setState(() {
-        _chatMessages.add({'role': 'user', 'content': userPrompt});
-        _chatMessages.add({
-          'role': 'assistant',
-          'content': '⚡ **Qualcomm Hexagon NPU Sidecar Engine Status**\n\n'
-              '## 🧠 Active On-Device ONNX Models:\n'
-              '1. 🔤 **CodeBERTa Classifier** (`codeberta.onnx` — 85.7 MB):\n'
-              '   • *NPU EP*: Qualcomm Hexagon / Android NNAPI\n'
-              '   • *Status*: Active (Dart / HTML / JS / C++ code detection)\n\n'
-              '2. 🔍 **BGE Small v1.5 Vector Embeddings** (`bge_small_v1.5.onnx` — 133 MB):\n'
-              '   • *Dimensions*: 384-dimensional Dense Vector\n'
-              '   • *Status*: Active for Antigravity Brain Storage & Workspace Memory\n\n'
-              '> *Auxiliary models execute on NPU/CPU without GPU VRAM contention.*',
-          'thinking': 'Sidecar NPU Pipeline (bge-small-en-v1.5 + CodeBERTa):\n'
-              '• Execution Provider: Qualcomm QNN / Android NNAPI\n'
-              '• Latency: 12ms NPU dispatch',
-          'thinkingTime': '0.012s'
-        });
-      });
-      _scrollToBottom();
-      return;
-    }
-
-    // Anchor to Active Workspace
-    final activeWs = _workspaceManager.activeWorkspace;
-    const editVerbs = ['build', 'create', 'make', 'generate', 'edit', 'modify', 'update', 'change', 'refactor', 'fix', 'add'];
-    final bool isWidgetRequest = editVerbs.any((v) => lowerPrompt.contains(v)) ||
-        lowerPrompt.contains('app') ||
-        lowerPrompt.contains('widget') ||
-        (buildVerbs.any((v) => lowerPrompt.contains(v)) &&
-            appNouns.any((n) => lowerPrompt.contains(n)));
-
-    // ── Token budget ────────────────────────────────────────────────────
-    final isCodeRequest = !isWidgetRequest &&
-        (lowerPrompt.contains('algorithm') || lowerPrompt.contains('function') ||
-         lowerPrompt.contains('implement') || lowerPrompt.contains('code') ||
-         lowerPrompt.contains('class') || lowerPrompt.contains('sort') ||
-         lowerPrompt.contains('search') || lowerPrompt.contains('program') ||
-         lowerPrompt.contains('script'));
-    // Mini apps get 3000 tokens (full HTML), code 2048, chat 512
-    final maxTokens = isWidgetRequest ? 3000 : (isCodeRequest ? 2048 : 512);
+    _mcpServer.addLog('CHAT: User prompt -> "$userPrompt"');
 
     setState(() {
       _chatMessages.add({'role': 'user', 'content': userPrompt});
@@ -236,11 +201,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     });
     _scrollToBottom();
 
-    if (activeWs != null) {
-      _workspaceManager.addChatMessageToActiveWorkspace('user', userPrompt);
-    }
-
-    // ── Run Sidecar NPU Isolate ─────────────────────────────────────────
     final stopwatch = Stopwatch()..start();
     SidecarResult? sidecarRes;
     try {
@@ -254,7 +214,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     setState(() => _isSidecarProcessing = false);
 
     final thinkingSummary = sidecarRes != null
-        ? 'NPU Vector Similarity: ${sidecarRes.retrievedContext.isNotEmpty ? "Found 1 matching workspace context" : "Direct generation"}\n'
+        ? 'NPU Vector Similarity: ${sidecarRes.retrievedContext.isNotEmpty ? "Retrieved codebase context" : "Direct generation"}\n'
             'Detected Code Language: ${sidecarRes.detectedLanguage}\n'
             'Sidecar Execution Provider: Qualcomm Hexagon NPU / NNAPI'
         : 'Executed on-device Qwen2.5-Coder SLM engine on Adreno GPU.';
@@ -265,42 +225,17 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       _chatMessages[assistantIndex]['thinkingTime'] = '${elapsedSec}s';
     });
 
-    // ── System Directive ────────────────────────────────────────────────
-    String systemDirective;
-    if (isWidgetRequest) {
-      systemDirective =
-          'You are Essential AI, an autonomous on-device HTML mini app developer running on $_gpuInfo.\n\n'
-          'CRITICAL RULES FOR ALL MINI APPS:\n'
-          '1. Build ONLY what the user requested. NEVER invoke unrequested hardware APIs.\n'
-          '2. When user requests audio, synthesize sound effects using HTML5 Web Audio API (AudioContext). For haptics/vibration, use navigator.vibrate([15, 30]). Display live reactive UI metrics.\n'
-          '3. Output the ENTIRE, COMPLETE, FULLY-WORKING mini app inside ONE SINGLE ```html CODE BLOCK.\n'
-          '4. Place all CSS in <style> and JavaScript in <script> inside the single ```html code block.\n'
-          '5. Create gorgeous, interactive, responsive UI (dark theme: #0E0E12 background, #7C4DFF primary accent).\n'
-          '6. Start IMMEDIATELY with ```html without preamble text.\n\n';
-
-      if (activeWs != null) {
-        systemDirective += '\nACTIVE WORKSPACE TO MODIFY (ID: ${activeWs.id}, Title: "${activeWs.title}"):\n'
-            '```html\n${activeWs.htmlContent}\n```\n'
-            'USER INSTRUCTION: "$userPrompt"\n'
-            'DIRECTIVE: The user is modifying or giving feedback on the existing app above. Update the HTML/CSS/JS and output the ENTIRE updated mini app inside ONE SINGLE ```html CODE BLOCK.\n';
-      }
-    } else {
-      systemDirective =
-          'You are Essential AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
-          'CONVERSATIONAL DIRECTIVES:\n'
-          '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer.\n'
-          '2. Use clear, beautifully structured Markdown formatting (## headings, **bold**, bullet points, and code blocks).\n'
-          '3. Be concise yet deeply insightful — zero fluff.\n';
-    }
+    final systemDirective =
+        'You are Essential AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
+        'CONVERSATIONAL DIRECTIVES:\n'
+        '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer.\n'
+        '2. Use clear, beautifully structured Markdown formatting (## headings, **bold**, bullet points, and code blocks).\n'
+        '3. Be concise yet deeply insightful — zero fluff.\n';
 
     final formattedPrompt =
         '<|im_start|>system\n$systemDirective<|im_end|>\n<|im_start|>user\n$userPrompt<|im_end|>\n<|im_start|>assistant\n';
 
-    final stream = _llamaIsolate.generate(
-      formattedPrompt,
-      grammar: null,
-      maxNewTokens: isWidgetRequest ? 3500 : 1500,
-    );
+    final stream = _llamaIsolate.generate(formattedPrompt, maxNewTokens: 1500);
 
     await for (final event in stream) {
       if (event.token.isNotEmpty) {
@@ -322,50 +257,12 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         .replaceAll('<|endoftext|>', '')
         .trimRight();
 
-    MiniAppWorkspace? targetWs;
-    if (isWidgetRequest) {
-      try {
-        String? extractedHtml;
-        final htmlBlockMatch = RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
-        if (htmlBlockMatch != null) {
-          extractedHtml = htmlBlockMatch.group(1)!.trim();
-        } else {
-          final genericBlockMatch = RegExp(r'```(?:[a-z]*)\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
-          if (genericBlockMatch != null && (genericBlockMatch.group(1)!.contains('<!DOCTYPE html>') || genericBlockMatch.group(1)!.contains('<html'))) {
-            extractedHtml = genericBlockMatch.group(1)!.trim();
-          }
-        }
-
-        if (extractedHtml != null && extractedHtml.isNotEmpty) {
-          String title = activeWs?.title ?? 'Generated Mini App';
-          final titleTag = RegExp(r'<title[^>]*>(.*?)</title>', caseSensitive: false).firstMatch(extractedHtml);
-          if (titleTag?.group(1)?.trim().isNotEmpty == true) {
-            title = titleTag!.group(1)!.trim();
-          }
-
-          if (activeWs != null) {
-            await _workspaceManager.updateWorkspaceHtml(activeWs.id, extractedHtml);
-            targetWs = activeWs;
-          } else {
-            targetWs = await _workspaceManager.createWorkspace(title: title, htmlContent: extractedHtml);
-          }
-        }
-      } catch (e) {
-        debugPrint('Workspace update error: $e');
-      }
-    }
-
     setState(() {
       _chatMessages[assistantIndex]['content'] = finalText;
-      if (targetWs != null) {
-        _chatMessages[assistantIndex]['workspace'] = targetWs;
-      }
       _isGenerating = false;
     });
 
-    if (activeWs != null) {
-      _workspaceManager.addChatMessageToActiveWorkspace('assistant', finalText);
-    }
+    _mcpServer.addLog('CHAT: Response generation complete.');
   }
 
   void _scrollToBottom() {
@@ -380,6 +277,141 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     });
   }
 
+  void _scrollToLogBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_logScrollController.hasClients) {
+        _logScrollController.animateTo(
+          _logScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _createNewProjectDialog() async {
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2A),
+        title: const Text('Create New Project', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Project Title',
+                labelStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF7C4DFF))),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                labelStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF7C4DFF))),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final title = titleController.text.trim();
+              if (title.isEmpty) return;
+              final desc = descController.text.trim().isNotEmpty ? descController.text.trim() : 'Custom HTML Mini App';
+
+              Navigator.of(ctx).pop();
+
+              final p = await _projectManager.createProject(
+                title: title,
+                description: desc,
+                htmlContent: '''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>$title</title>
+    <style>
+        body {
+            background-color: #FFFFFF;
+            color: #111111;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .container {
+            background: #F8F9FA;
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+            border: 1px solid #E9ECEF;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 { color: #7C4DFF; font-size: 22px; margin-top: 0; }
+        p { color: #666666; font-size: 14px; }
+        .btn {
+            background: #7C4DFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>$title</h1>
+        <p>$desc</p>
+        <button class="btn" onclick="alert('Hello from $title!')">Interactive Button</button>
+    </div>
+</body>
+</html>''',
+              );
+
+              if (mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProjectStudioPage(
+                      project: p,
+                      projectManager: _projectManager,
+                      llamaIsolate: _llamaIsolate,
+                      sidecarIsolate: _sidecarIsolate,
+                      gpuInfo: _gpuInfo,
+                    ),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C4DFF)),
+            child: const Text('CREATE'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _healthTimer?.cancel();
@@ -388,6 +420,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     _sidecarIsolate.dispose();
     _chatInputController.dispose();
     _chatScrollController.dispose();
+    _logScrollController.dispose();
     super.dispose();
   }
 
@@ -423,7 +456,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
         index: _selectedTabIndex,
         children: [
           _buildChatTab(),
-          _buildMiniAppsWorkspaceTab(),
+          _buildProjectsTab(),
           _buildMcpServerTab(),
         ],
       ),
@@ -439,9 +472,9 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
             label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.widgets_outlined),
-            selectedIcon: Icon(Icons.widgets_rounded, color: Color(0xFFD0BCFF)),
-            label: 'Workspaces',
+            icon: Icon(Icons.folder_special_outlined),
+            selectedIcon: Icon(Icons.folder_special_rounded, color: Color(0xFFD0BCFF)),
+            label: 'Projects',
           ),
           NavigationDestination(
             icon: Icon(Icons.api_outlined),
@@ -453,41 +486,10 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     );
   }
 
-  // ── 1. Gemini Chat Tab ───────────────────────────────────────────────────
+  // ── 1. Standalone Gemini Chat Tab ─────────────────────────────────────────
   Widget _buildChatTab() {
     return Column(
       children: [
-        // Active Workspace Indicator Bar
-        ValueListenableBuilder<List<MiniAppWorkspace>>(
-          valueListenable: _workspaceManager,
-          builder: (ctx, workspaces, _) {
-            final active = _workspaceManager.activeWorkspace;
-            if (active == null) return const SizedBox.shrink();
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: const Color(0xFF14141B),
-              child: Row(
-                children: [
-                  const Icon(Icons.folder_special_rounded, color: Color(0xFF7C4DFF), size: 16),
-                  const SizedBox(width: 8),
-                  Text('Active Workspace: ', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  Expanded(
-                    child: Text(
-                      active.title,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8)),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() => _selectedTabIndex = 1),
-                    child: const Text('SWITCH', style: TextStyle(fontSize: 11, color: Color(0xFFD0BCFF))),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        // Chat messages stream view
         Expanded(
           child: ListView.builder(
             controller: _chatScrollController,
@@ -497,7 +499,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
               final msg = _chatMessages[idx];
               final role = msg['role'] as String;
               final content = msg['content'] as String;
-              final wsItem = msg['workspace'] as MiniAppWorkspace?;
               final thinking = msg['thinking'] as String?;
               final thinkingTime = msg['thinkingTime'] as String? ?? '0.3s';
 
@@ -536,7 +537,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Thinking Process Banner
                       if (!isUser && thinking != null) ...[
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
@@ -585,40 +585,8 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.white12),
                             ),
-                            listBullet: const TextStyle(color: Color(0xFF7C4DFF)),
                           ),
                         ),
-                      if (wsItem != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.deepPurpleAccent),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text(wsItem.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 260,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: MiniAppWebViewWidget(htmlContent: wsItem.htmlContent),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -626,7 +594,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
             },
           ),
         ),
-        // Gemini Curved Floating Input Bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           color: const Color(0xFF0E0E12),
@@ -672,65 +639,162 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     );
   }
 
-  // ── 2. Mini Apps Workspace Tab ───────────────────────────────────────────
-  Widget _buildMiniAppsWorkspaceTab() {
-    return ValueListenableBuilder<List<MiniAppWorkspace>>(
-      valueListenable: _workspaceManager,
-      builder: (context, workspaces, _) {
-        if (workspaces.isEmpty) {
-          return const Center(child: Text('No mini app workspaces found.'));
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: workspaces.length,
-          itemBuilder: (context, idx) {
-            final ws = workspaces[idx];
-            final isActive = _workspaceManager.activeWorkspace?.id == ws.id;
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E2A),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isActive ? const Color(0xFF7C4DFF) : Colors.white10, width: isActive ? 2 : 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  // ── 2. Projects Manager Tab ────────────────────────────────────────────────
+  Widget _buildProjectsTab() {
+    return ValueListenableBuilder<List<ProjectItem>>(
+      valueListenable: _projectManager,
+      builder: (context, projects, _) {
+        return Column(
+          children: [
+            // Top Bar with "+ New Project" Button
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: const Color(0xFF14141B),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.folder_special_rounded, color: Color(0xFF8AB4F8)),
-                    title: Text(ws.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('ID: ${ws.id} • ${ws.indexPath}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                    trailing: ElevatedButton(
-                      onPressed: () {
-                        _workspaceManager.setActiveWorkspace(ws);
-                        setState(() => _selectedTabIndex = 0);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isActive ? const Color(0xFF7C4DFF) : Colors.white12,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text(isActive ? 'ACTIVE' : 'SELECT'),
-                    ),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('HTML Mini App Projects', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+                      Text('Manage, preview, and edit your project source code', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
                   ),
-                  SizedBox(
-                    height: 280,
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                      child: MiniAppWebViewWidget(htmlContent: ws.htmlContent),
+                  ElevatedButton.icon(
+                    onPressed: _createNewProjectDialog,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('+ New Project', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C4DFF),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     ),
                   ),
                 ],
               ),
-            );
-          },
+            ),
+            Expanded(
+              child: projects.isEmpty
+                  ? const Center(child: Text('No projects found. Tap "+ New Project" to create one.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: projects.length,
+                      itemBuilder: (context, idx) {
+                        final p = projects[idx];
+                        final appItem = MiniAppItem(
+                          id: p.id,
+                          title: p.title,
+                          description: p.description,
+                          htmlContent: p.htmlContent,
+                          isEnabled: p.isEnabled,
+                          backgroundEnabled: p.backgroundEnabled,
+                        );
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E2A),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: p.isEnabled ? const Color(0xFF7C4DFF).withValues(alpha: 0.4) : Colors.white10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                leading: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: p.isEnabled ? const Color(0xFF7C4DFF).withValues(alpha: 0.15) : Colors.white10,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(Icons.folder_special_rounded, color: p.isEnabled ? const Color(0xFFD0BCFF) : Colors.grey),
+                                ),
+                                title: Text(p.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                subtitle: Text(p.description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Background Process Toggle
+                                    Tooltip(
+                                      message: 'Background mode',
+                                      child: IconButton(
+                                        icon: Icon(
+                                          Icons.run_circle_outlined,
+                                          color: p.backgroundEnabled ? Colors.greenAccent : Colors.grey,
+                                        ),
+                                        onPressed: () => _projectManager.toggleBackground(p.id),
+                                      ),
+                                    ),
+                                    // Enable / Disable Toggle
+                                    Switch(
+                                      value: p.isEnabled,
+                                      onChanged: (_) => _projectManager.toggleEnabled(p.id),
+                                      activeThumbColor: const Color(0xFFD0BCFF),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                child: Row(
+                                  children: [
+                                    // Button 1: Open App
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(builder: (_) => MiniAppPage(app: appItem)),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                                      label: const Text('Open App', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF7C4DFF),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Button 2: Open Project
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => ProjectStudioPage(
+                                              project: p,
+                                              projectManager: _projectManager,
+                                              llamaIsolate: _llamaIsolate,
+                                              sidecarIsolate: _sidecarIsolate,
+                                              gpuInfo: _gpuInfo,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.code_rounded, size: 16, color: Color(0xFF8AB4F8)),
+                                      label: const Text('Open Project', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8))),
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Color(0xFF8AB4F8)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       },
     );
   }
 
-  // ── 3. MCP Server Tab ───────────────────────────────────────────────────
+  // ── 3. MCP Server Tab (Live Server & SLM Console Logs) ──────────────────────
   Widget _buildMcpServerTab() {
     final isOnline = _mcpStatus != 'Server Offline';
 
@@ -789,39 +853,49 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text('Registered Continue.dev & Antigravity Tools:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Server & SLM Live Console Logs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              IconButton(
+                icon: const Icon(Icons.clear_all_rounded, size: 20, color: Colors.grey),
+                onPressed: () => setState(() => _serverLogs.clear()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Expanded(
-            child: ListView(
-              children: [
-                _buildMcpToolTile('workspace/readFile', 'Reads source code from active mini app workspace.'),
-                _buildMcpToolTile('workspace/writeFile', 'Writes or updates source file in mini app workspace.'),
-                _buildMcpToolTile('workspace/listDirectory', 'Lists files in mini app workspace directory.'),
-                _buildMcpToolTile('brain/saveMemory', 'Saves persistent conversation memory to Antigravity brain.'),
-                _buildMcpToolTile('brain/searchMemory', 'Searches Antigravity brain storage via BGE-small ONNX vectors.'),
-                _buildMcpToolTile('miniApp/updateHtml', 'Updates and redeploys mini app source code in place.'),
-                _buildMcpToolTile('system/getHardwareTelemetry', 'Queries live OpenCL GPU and Hexagon NPU load.'),
-              ],
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E0E12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: _serverLogs.isEmpty
+                  ? const Center(child: Text('No logs generated yet. Tap START to initiate server logs.', style: TextStyle(fontSize: 12, color: Colors.grey)))
+                  : ListView.builder(
+                      controller: _logScrollController,
+                      itemCount: _serverLogs.length,
+                      itemBuilder: (context, idx) {
+                        final log = _serverLogs[idx];
+                        Color logColor = const Color(0xFF8AB4F8);
+                        if (log.contains('SERVER:')) logColor = Colors.greenAccent;
+                        if (log.contains('SLM:')) logColor = const Color(0xFFD0BCFF);
+                        if (log.contains('CHAT:')) logColor = Colors.amberAccent;
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: SelectableText(
+                            log,
+                            style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: logColor),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMcpToolTile(String name, String desc) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E2A),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.api_rounded, color: Color(0xFF8AB4F8)),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text(desc, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ),
     );
   }
@@ -844,13 +918,6 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
             color: _isGenerating ? const Color(0xFFD0BCFF) : const Color(0xFF7C4DFF).withValues(alpha: 0.35),
             width: _isGenerating ? 1.5 : 1.0,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: _isGenerating ? const Color(0xFF7C4DFF).withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.4),
-              blurRadius: _isGenerating ? 10 : 6,
-              spreadRadius: _isGenerating ? 1 : 0,
-            ),
-          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -889,14 +956,7 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: isActive ? [BoxShadow(color: color.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1)] : [],
-          ),
-          child: Icon(icon, size: 12, color: isActive ? color : color.withValues(alpha: 0.6)),
-        ),
+        Icon(icon, size: 12, color: isActive ? color : color.withValues(alpha: 0.6)),
         const SizedBox(width: 3),
         Text(
           text,

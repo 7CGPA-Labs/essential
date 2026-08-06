@@ -14,6 +14,14 @@ class McpServer {
   final LlamaIsolateWrapper _llamaIsolate;
   MiniAppWorkspaceManager? workspaceManager;
   HttpServer? _server;
+  final StreamController<String> _logController = StreamController<String>.broadcast();
+
+  Stream<String> get logStream => _logController.stream;
+
+  void addLog(String message) {
+    final timestamp = DateTime.now().toIso8601String().substring(11, 19);
+    _logController.add('[$timestamp] $message');
+  }
 
   McpServer(this._llamaIsolate, {this.workspaceManager});
 
@@ -33,11 +41,9 @@ class McpServer {
   Future<void> start({int port = 8080}) async {
     final router = Router();
 
-    // ── OpenAI REST API Endpoints ───────────────────────────────────────────
     router.get('/v1/models', _handleListModels);
     router.post('/v1/chat/completions', _handleChatCompletions);
 
-    // ── MCP Protocol Standard Endpoints (Continue.dev Client compatible) ────
     router.post('/rpc', _handleJsonRpc);
     router.get('/sse', _handleSseConnect);
 
@@ -47,12 +53,14 @@ class McpServer {
         .addHandler(router.call);
 
     _server = await io.serve(handler, InternetAddress.anyIPv4, port);
+    addLog('SERVER: MCP Server listening on http://0.0.0.0:$port');
     developer.log('MCP Server operational and listening on http://0.0.0.0:$port', name: 'McpServer');
   }
 
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
+    addLog('SERVER: MCP Server stopped.');
     developer.log('MCP Server offline', name: 'McpServer');
   }
 
