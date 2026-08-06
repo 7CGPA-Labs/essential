@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'ffi/llama_bindings.dart';
 import 'ffi/llama_isolate.dart';
@@ -137,16 +138,9 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
   Future<void> _initializeLocalSLM() async {
     _addSystemMessage('Initializing CodingSaathi SLM Engine...');
     _mcpServer.addLog('SLM: Initializing local Qwen2.5-Coder model...');
-    final modelPath1 = '/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf';
-    final modelPath2 = '/sdcard/Android/data/com.example.essential/files/models/qwen2.5-coder-1.5b.gguf';
+    const modelPath = '/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/models/qwen2.5-coder-1.5b.gguf';
 
-    var file = File(modelPath1);
-    var modelPath = modelPath1;
-    if (!await file.exists()) {
-      file = File(modelPath2);
-      modelPath = modelPath2;
-    }
-
+    final file = File(modelPath);
     if (await file.exists()) {
       _addSystemMessage('Loading Qwen2.5-Coder (GGUF Q4_K_M) on Adreno GPU...');
       final ok = await () async {
@@ -166,10 +160,10 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
       }
     } else {
       _addSystemMessage(
-        '⚠️ Qwen2.5-Coder model not found at:\n$modelPath1\n\n'
+        '⚠️ Qwen2.5-Coder model not found at:\n$modelPath\n\n'
         'Please ensure the model file is pushed to device storage.',
       );
-      _mcpServer.addLog('SLM: Model file missing at $modelPath1');
+      _mcpServer.addLog('SLM: Model file missing at $modelPath');
     }
   }
 
@@ -641,7 +635,39 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
                           content,
                           style: const TextStyle(fontSize: 12.5, height: 1.4, color: Colors.white),
                         )
-                      else
+                      else ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.smart_toy_rounded, size: 13, color: Color(0xFFD0BCFF)),
+                                SizedBox(width: 4),
+                                Text('CodingSaathi AI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF))),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: content));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Copied response to clipboard!'), duration: Duration(seconds: 1)),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.copy_rounded, size: 13, color: Colors.grey),
+                                    SizedBox(width: 3),
+                                    Text('Copy', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         MarkdownBody(
                           data: content.isEmpty && _isGenerating ? 'Analyzing & generating response...' : content,
                           selectable: true,
@@ -658,6 +684,7 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
                             ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -811,45 +838,51 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                                 child: Row(
                                   children: [
                                     // Button 1: Open App
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(builder: (_) => MiniAppPage(app: appItem)),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                                      label: const Text('Open App', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF7C4DFF),
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(builder: (_) => MiniAppPage(app: appItem)),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                                        label: const Text('Open App', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF7C4DFF),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 8),
                                     // Button 2: Open Project
-                                    OutlinedButton.icon(
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => ProjectStudioPage(
-                                              project: p,
-                                              projectManager: _projectManager,
-                                              llamaIsolate: _llamaIsolate,
-                                              sidecarIsolate: _sidecarIsolate,
-                                              gpuInfo: _gpuInfo,
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => ProjectStudioPage(
+                                                project: p,
+                                                projectManager: _projectManager,
+                                                llamaIsolate: _llamaIsolate,
+                                                sidecarIsolate: _sidecarIsolate,
+                                                gpuInfo: _gpuInfo,
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.code_rounded, size: 16, color: Color(0xFF8AB4F8)),
-                                      label: const Text('Open Project', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8))),
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: Color(0xFF8AB4F8)),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.code_rounded, size: 14, color: Color(0xFF8AB4F8)),
+                                        label: const Text('Open Project', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF8AB4F8))),
+                                        style: OutlinedButton.styleFrom(
+                                          side: const BorderSide(color: Color(0xFF8AB4F8)),
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -959,9 +992,12 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: SelectableText(
-                            log,
-                            style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: logColor),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SelectableText(
+                              log,
+                              style: TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: logColor),
+                            ),
                           ),
                         );
                       },
