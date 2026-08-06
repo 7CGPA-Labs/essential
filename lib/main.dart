@@ -792,8 +792,8 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: _createNewProjectDialog,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('+ New Project', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    icon: const Icon(Icons.add_outlined, size: 16),
+                    label: const Text('New Project', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF7C4DFF),
                       foregroundColor: Colors.white,
@@ -806,7 +806,7 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
             ),
             Expanded(
               child: projects.isEmpty
-                  ? const Center(child: Text('No projects found. Tap "+ New Project" to create one.'))
+                  ? const Center(child: Text('No projects found. Tap "New Project" to create one.'))
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: projects.length,

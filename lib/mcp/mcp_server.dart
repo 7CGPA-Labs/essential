@@ -7,12 +7,10 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
 import '../ffi/llama_isolate.dart';
 import '../ffi/llama_bindings.dart';
-import '../mini_apps/mini_app_workspace.dart';
 import 'package:ffi/ffi.dart';
 
 class McpServer {
   final LlamaIsolateWrapper _llamaIsolate;
-  MiniAppWorkspaceManager? workspaceManager;
   HttpServer? _server;
   final StreamController<String> _logController = StreamController<String>.broadcast();
 
@@ -23,7 +21,7 @@ class McpServer {
     _logController.add('[$timestamp] $message');
   }
 
-  McpServer(this._llamaIsolate, {this.workspaceManager});
+  McpServer(this._llamaIsolate);
 
   static Future<String> getLocalIpAddress() async {
     try {
@@ -109,13 +107,8 @@ class McpServer {
 
     final userMessage = messages.last['content'] as String;
 
-    final activeWs = workspaceManager?.activeWorkspace;
-    final wsContext = activeWs != null
-        ? '\nActive Workspace: ID=${activeWs.id}, Title="${activeWs.title}"\nHTML:\n```html\n${activeWs.htmlContent}\n```\n'
-        : '';
-
     final formattedPrompt =
-        '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.\n$wsContext<|im_end|>\n'
+        '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.<|im_end|>\n'
         '<|im_start|>user\n$userMessage<|im_end|>\n'
         '<|im_start|>assistant\n';
 
@@ -362,11 +355,9 @@ class McpServer {
             };
           } else if (toolName == 'miniApp/updateHtml') {
             final appId = args['appId'] as String;
-            final html = args['html'] as String;
-            await workspaceManager?.updateWorkspaceHtml(appId, html);
             result = {
               'content': [
-                {'type': 'text', 'text': 'MiniApp $appId updated and redeployed successfully.'}
+                {'type': 'text', 'text': 'MiniApp $appId update requested via MCP protocol.'}
               ]
             };
           } else if (toolName == 'system/getHardwareTelemetry') {
