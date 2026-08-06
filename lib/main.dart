@@ -187,6 +187,47 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
     }
   }
 
+  bool _shouldSearchWeb(String prompt) {
+    final lower = prompt.toLowerCase().trim();
+    if (lower.isEmpty) return false;
+
+    if (lower == 'hi' ||
+        lower == 'hello' ||
+        lower == 'hey' ||
+        lower.startsWith('create') ||
+        lower.startsWith('build') ||
+        lower.startsWith('make') ||
+        lower.startsWith('edit') ||
+        lower.startsWith('modify') ||
+        lower.startsWith('add') ||
+        lower.startsWith('fix')) {
+      return false;
+    }
+
+    final searchTriggers = [
+      'search',
+      'lookup',
+      'web',
+      'internet',
+      'latest',
+      'news',
+      'today',
+      'antigravity',
+      'google',
+      'who is',
+      'what is',
+      'when did',
+      'where is',
+      'weather',
+      'stock',
+      'score',
+      'explain',
+      'tell me about',
+    ];
+
+    return searchTriggers.any((t) => lower.contains(t));
+  }
+
   void _sendChatMessage() async {
     if (_chatInputController.text.trim().isEmpty || _isGenerating) return;
     final userPrompt = _chatInputController.text.trim();
@@ -215,17 +256,21 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
 
     setState(() => _isSidecarProcessing = false);
 
-    // ── 2. Universal Live Web Search Retrieval for All Questions ─────────────
+    // ── 2. Intelligent Live Web Search Retrieval (Only when required) ─────────
     String webSearchContext = '';
-    _mcpServer.addLog('SEARCH: ONNX NLP Tokenized -> Querying live web search for "$userPrompt"...');
-    try {
-      final searchResults = await WebSearchService.searchWeb(userPrompt);
-      if (searchResults.isNotEmpty) {
-        webSearchContext = '\nLIVE INTERNET SEARCH RESULTS (ONNX NLP Retrieved):\n$searchResults\n';
-        _mcpServer.addLog('SEARCH: Live web search information successfully retrieved.');
+    final bool needsWebSearch = _shouldSearchWeb(userPrompt);
+
+    if (needsWebSearch) {
+      _mcpServer.addLog('SEARCH: Intelligent intent detected -> Querying live web for "$userPrompt"...');
+      try {
+        final searchResults = await WebSearchService.searchWeb(userPrompt);
+        if (searchResults.isNotEmpty) {
+          webSearchContext = '\nLIVE INTERNET SEARCH RESULTS (ONNX NLP Retrieved):\n$searchResults\n';
+          _mcpServer.addLog('SEARCH: Live web search information successfully retrieved.');
+        }
+      } catch (e) {
+        debugPrint('Web search error: $e');
       }
-    } catch (e) {
-      debugPrint('Universal web search error: $e');
     }
 
     final thinkingSummary = sidecarRes != null
@@ -665,29 +710,31 @@ class _GeminiMainSurfaceState extends State<GeminiMainSurface> {
       builder: (context, projects, _) {
         return Column(
           children: [
-            // Top Bar with "+ New Project" Button
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               color: const Color(0xFF14141B),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('HTML Mini App Projects', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-                      Text('Manage, preview, and edit your project source code', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('HTML Mini App Projects', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+                        SizedBox(height: 2),
+                        Text('Manage & edit your mini app source code', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: _createNewProjectDialog,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('+ New Project', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text('+ New Project', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF7C4DFF),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
                 ],
