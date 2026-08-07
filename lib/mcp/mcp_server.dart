@@ -89,7 +89,7 @@ class McpServer {
             'id': 'qwen2.5-coder-1.5b',
             'object': 'model',
             'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            'owned_by': 'essential-ondevice',
+            'owned_by': 'codingsaathi-ondevice',
             'permission': [],
             'root': 'qwen2.5-coder-1.5b',
             'parent': null,
@@ -211,7 +211,7 @@ class McpServer {
               'resources': {'subscribe': true, 'listChanged': true},
               'tools': {'listChanged': true}
             },
-            'serverInfo': {'name': 'EssentialOnDeviceMcpServer', 'version': '2.0.0'}
+            'serverInfo': {'name': 'CodingSaathiOnDeviceMcpServer', 'version': '2.0.0'}
           };
           break;
 

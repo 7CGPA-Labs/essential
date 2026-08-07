@@ -27,7 +27,7 @@ class MiniAppBackgroundService {
       autoStart: false,
       isForegroundMode: false,
       notificationChannelId: 'mini_apps_bg_channel',
-      initialNotificationTitle: 'Essential Mini Apps',
+      initialNotificationTitle: 'CodingSaathi Mini Apps',
       initialNotificationContent: 'Running mini apps in background',
       foregroundServiceNotificationId: 9900,
     );
@@ -68,7 +68,7 @@ void _onBackgroundStart(ServiceInstance service) async {
       ?.createNotificationChannel(const AndroidNotificationChannel(
         'mini_apps_bg_channel',
         'Mini Apps Background Service',
-        description: 'Persistent background service for Essential Mini Apps',
+        description: 'Persistent background service for CodingSaathi Mini Apps',
         importance: Importance.low,
       ));
 
@@ -84,7 +84,7 @@ void _onBackgroundStart(ServiceInstance service) async {
 
     if (service is AndroidServiceInstance) {
       service.setForegroundNotificationInfo(
-        title: 'Essential — ${runningApps.length} app(s) running',
+        title: 'CodingSaathi — ${runningApps.length} app(s) running',
         content: runningApps.length == 1 ? title : '${runningApps.length} mini apps active',
       );
     }
@@ -99,7 +99,7 @@ void _onBackgroundStart(ServiceInstance service) async {
       service.stopSelf();
     } else if (service is AndroidServiceInstance) {
       service.setForegroundNotificationInfo(
-        title: 'Essential — ${runningApps.length} app(s) running',
+        title: 'CodingSaathi — ${runningApps.length} app(s) running',
         content: '${runningApps.length} mini apps active in background',
       );
     }

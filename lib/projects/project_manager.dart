@@ -141,7 +141,7 @@ class ProjectManager extends ValueNotifier<List<ProjectItem>> {
 </head>
 <body>
     <div class="card">
-        <h1>Essential HTML Mini App</h1>
+        <h1>CodingSaathi HTML Mini App</h1>
         <p>This is a clean, responsive HTML mini app running on white background default canvas.</p>
         <button onclick="countUp()">Taps: <span id="counter">0</span></button>
     </div>

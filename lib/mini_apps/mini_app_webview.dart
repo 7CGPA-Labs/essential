@@ -8,6 +8,7 @@ import 'package:torch_light/torch_light.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'mini_app_manager.dart';
+import 'web_view_sandbox.dart';
 
 // ── Notification Helper ────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ class MiniAppNotifications {
         ?.createNotificationChannel(const AndroidNotificationChannel(
           'mini_apps_bg_channel',
           'Mini Apps Background Service',
-          description: 'Persistent background service for Essential Mini Apps',
+          description: 'Persistent background service for CodingSaathi Mini Apps',
           importance: Importance.low,
         ));
 
@@ -162,155 +163,103 @@ class _MiniAppPageState extends State<MiniAppPage> {
         onPageFinished: (_) => setState(() => _loading = false),
       ))
       ..addJavaScriptChannel(
-        'EssentialBridge',
-        onMessageReceived: (msg) async {
-          try {
-            final parts = msg.message.split('|||');
-            final action = parts[0];
-
-            switch (action) {
-              // 1. Notifications
-              case 'notify':
-                if (parts.length >= 3) {
-                  await MiniAppNotifications.show(
-                    appId: widget.app.id,
-                    title: parts[1],
-                    body: parts[2],
-                  );
-                }
-              case 'startLiveNotification':
-                if (parts.length >= 4) {
-                  await MiniAppNotifications.startLiveNotification(
-                    liveId: parts[1],
-                    title: parts[2],
-                    body: parts[3],
-                  );
-                }
-              case 'updateLiveNotification':
-                if (parts.length >= 4) {
-                  await MiniAppNotifications.updateLiveNotification(
-                    liveId: parts[1],
-                    title: parts[2],
-                    body: parts[3],
-                  );
-                }
-              case 'stopLiveNotification':
-                if (parts.length >= 2) {
-                  await MiniAppNotifications.stopLiveNotification(parts[1]);
-                }
-
-              // 2. GPS & Location
-              case 'getLocation':
-                await _handleGetLocation();
-              case 'watchLocation':
-                await _startWatchLocation();
-              case 'clearWatch':
-                await _stopWatchLocation();
-              case 'setGeoAlarm':
-                if (parts.length >= 6) {
-                  await _handleSetGeoAlarm(
-                    targetLat: double.tryParse(parts[1]) ?? 0,
-                    targetLng: double.tryParse(parts[2]) ?? 0,
-                    radiusM: double.tryParse(parts[3]) ?? 500,
-                    title: parts[4],
-                    body: parts[5],
-                  );
-                }
-              case 'clearGeoAlarm':
-                _clearGeoAlarm();
-
-              // 3. Sensors
-              case 'watchSensor':
-                if (parts.length >= 2) {
-                  _startWatchSensor(parts[1]);
-                }
-              case 'stopSensor':
-                if (parts.length >= 2) {
-                  _stopWatchSensor(parts[1]);
-                }
-
-              // 4. Torch / Flashlight
-              case 'setFlashlight':
-                if (parts.length >= 2) {
-                  final enable = parts[1] == 'true';
-                  await _setFlashlight(enable);
-                }
-
-              // 5. Network Status
-              case 'getNetworkStatus':
-                await _getNetworkStatus();
-            }
-          } catch (_) {}
-        },
+        'FlutterChannel',
+        onMessageReceived: (msg) => _processChannelMessage(msg.message),
       )
-      ..loadHtmlString(_injectBridge(widget.app.htmlContent));
+      ..addJavaScriptChannel(
+        'EssentialBridge',
+        onMessageReceived: (msg) => _processChannelMessage(msg.message),
+      )
+      ..loadHtmlString(WebViewSandboxService.prepareHtml(widget.app.htmlContent));
   }
 
-  /// Injects full Essential JS API into the WebView window
-  String _injectBridge(String html) {
-    const bridge = '''
-<script>
-(function() {
-  window.Essential = {
-    // 1. Notifications
-    notify: function(title, body) {
-      EssentialBridge.postMessage('notify|||' + title + '|||' + body);
-    },
-    startLiveNotification: function(id, title, body) {
-      EssentialBridge.postMessage('startLiveNotification|||' + id + '|||' + title + '|||' + body);
-    },
-    updateLiveNotification: function(id, title, body) {
-      EssentialBridge.postMessage('updateLiveNotification|||' + id + '|||' + title + '|||' + body);
-    },
-    stopLiveNotification: function(id) {
-      EssentialBridge.postMessage('stopLiveNotification|||' + id);
-    },
+  Future<void> _processChannelMessage(String messageText) async {
+    try {
+      final msg = WebViewSandboxService.parseChannelMessage(messageText);
+      if (msg == null) return;
 
-    // 2. GPS & Geofence
-    getLocation: function() {
-      EssentialBridge.postMessage('getLocation|||');
-    },
-    watchLocation: function() {
-      EssentialBridge.postMessage('watchLocation|||');
-    },
-    clearWatch: function() {
-      EssentialBridge.postMessage('clearWatch|||');
-    },
-    setGeoAlarm: function(lat, lng, radiusMeters, notifTitle, notifBody) {
-      EssentialBridge.postMessage('setGeoAlarm|||' + lat + '|||' + lng + '|||' +
-          radiusMeters + '|||' + notifTitle + '|||' + notifBody);
-    },
-    clearGeoAlarm: function() {
-      EssentialBridge.postMessage('clearGeoAlarm|||');
-    },
+      final action = msg.method;
+      final p = msg.payload;
 
-    // 3. Hardware Sensors (gyroscope, accelerometer, magnetometer)
-    watchSensor: function(type) {
-      EssentialBridge.postMessage('watchSensor|||' + type);
-    },
-    stopSensor: function(type) {
-      EssentialBridge.postMessage('stopSensor|||' + type);
-    },
+      switch (action) {
+        // 1. Notifications
+        case 'notify':
+          final title = p['title'] as String? ?? p['arg1'] as String? ?? '';
+          final body = p['body'] as String? ?? p['arg2'] as String? ?? '';
+          await MiniAppNotifications.show(
+            appId: widget.app.id,
+            title: title,
+            body: body,
+          );
 
-    // 4. Torch / Flashlight
-    setFlashlight: function(enabled) {
-      EssentialBridge.postMessage('setFlashlight|||' + enabled);
-    },
+        case 'startLiveNotification':
+          final liveId = p['id'] as String? ?? p['arg1'] as String? ?? '';
+          final title = p['title'] as String? ?? p['arg2'] as String? ?? '';
+          final body = p['body'] as String? ?? p['arg3'] as String? ?? '';
+          await MiniAppNotifications.startLiveNotification(
+            liveId: liveId,
+            title: title,
+            body: body,
+          );
 
-    // 5. Connectivity
-    getNetworkStatus: function() {
-      EssentialBridge.postMessage('getNetworkStatus|||');
-    },
+        case 'updateLiveNotification':
+          final liveId = p['id'] as String? ?? p['arg1'] as String? ?? '';
+          final title = p['title'] as String? ?? p['arg2'] as String? ?? '';
+          final body = p['body'] as String? ?? p['arg3'] as String? ?? '';
+          await MiniAppNotifications.updateLiveNotification(
+            liveId: liveId,
+            title: title,
+            body: body,
+          );
 
-    log: function(msg) { console.log('[Essential Bridge] ' + msg); }
-  };
-})();
-</script>''';
+        case 'stopLiveNotification':
+          final liveId = p['id'] as String? ?? p['arg1'] as String? ?? '';
+          await MiniAppNotifications.stopLiveNotification(liveId);
 
-    if (html.contains('</body>')) {
-      return html.replaceFirst('</body>', '$bridge\n</body>');
+        // 2. GPS & Location
+        case 'getLocation':
+          await _handleGetLocation();
+        case 'watchLocation':
+          await _startWatchLocation();
+        case 'clearWatch':
+          await _stopWatchLocation();
+        case 'setGeoAlarm':
+          final lat = double.tryParse(p['lat']?.toString() ?? p['arg1']?.toString() ?? '') ?? 0;
+          final lng = double.tryParse(p['lng']?.toString() ?? p['arg2']?.toString() ?? '') ?? 0;
+          final radius = double.tryParse(p['radius']?.toString() ?? p['arg3']?.toString() ?? '') ?? 500;
+          final title = p['title'] as String? ?? p['arg4'] as String? ?? '';
+          final body = p['body'] as String? ?? p['arg5'] as String? ?? '';
+          await _handleSetGeoAlarm(
+            targetLat: lat,
+            targetLng: lng,
+            radiusM: radius,
+            title: title,
+            body: body,
+          );
+        case 'clearGeoAlarm':
+          _clearGeoAlarm();
+
+        // 3. Sensors
+        case 'watchSensor':
+          final type = p['type'] as String? ?? p['arg1'] as String? ?? '';
+          if (type.isNotEmpty) _startWatchSensor(type);
+
+        case 'stopSensor':
+          final type = p['type'] as String? ?? p['arg1'] as String? ?? '';
+          if (type.isNotEmpty) _stopWatchSensor(type);
+
+        // 4. Torch / Flashlight
+        case 'setFlashlight':
+          final enabled = p['enabled'] == true || p['enabled']?.toString() == 'true' || p['arg1'] == 'true';
+          await _setFlashlight(enabled);
+
+        // 5. Network Status
+        case 'getNetworkStatus':
+          await _getNetworkStatus();
+      }
+    } catch (e) {
+      debugPrint('[MiniAppPage] Error handling channel message: $e');
     }
-    return html + bridge;
   }
 
   // ── Sensor Implementation ──────────────────────────────────────────────────

@@ -3,6 +3,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../ffi/llama_isolate.dart';
 import '../ffi/sidecar_isolate.dart';
 import '../mini_apps/mini_app_webview.dart';
+import '../mini_apps/mini_app_prompts.dart';
+import '../mini_apps/mini_app_code_patcher.dart';
 import 'project_manager.dart';
 
 class ProjectStudioPage extends StatefulWidget {
@@ -53,17 +55,14 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
 
     widget.projectManager.addChatMessageToProject(widget.project.id, 'user', text);
 
+    final editingPrompt = MiniAppPrompts.buildEditingPrompt(
+      widget.project.htmlContent,
+      text,
+    );
+
     final systemDirective =
         'You are CodingSaathi AI, an expert HTML mini app pair-programmer running 100% on-device on ${widget.gpuInfo}.\n\n'
-        'TARGET PROJECT: "${widget.project.title}" (ID: ${widget.project.id})\n'
-        'CURRENT HTML CODE:\n'
-        '```html\n${widget.project.htmlContent}\n```\n\n'
-        'CRITICAL INSTRUCTIONS:\n'
-        '1. The default WebView canvas background MUST BE LIGHT/WHITE (`#FFFFFF`).\n'
-        '2. Modify or add requested features to the HTML/CSS/JS above.\n'
-        '3. For sound effects, use Web Audio API (`AudioContext`). For haptics, use `navigator.vibrate([15, 30])`.\n'
-        '4. Output the ENTIRE, COMPLETE updated mini app inside ONE SINGLE ```html CODE BLOCK.\n'
-        '5. Start directly with ```html without fluff text.\n';
+        '$editingPrompt';
 
     final formattedPrompt =
         '<|im_start|>system\n$systemDirective<|im_end|>\n<|im_start|>user\n$text<|im_end|>\n<|im_start|>assistant\n';
@@ -89,26 +88,16 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
         .replaceAll('<|endoftext|>', '')
         .trimRight();
 
-    String? updatedHtml;
-    final htmlBlockMatch = RegExp(r'```html\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
-    if (htmlBlockMatch != null) {
-      updatedHtml = htmlBlockMatch.group(1)!.trim();
+    String updatedHtml;
+    if (finalText.contains('<<<<<<< SEARCH') || finalText.contains('<code_diff>')) {
+      // Apply Search / Replace diff patch to stored HTML string
+      updatedHtml = MiniAppCodePatcher.applyDiffs(widget.project.htmlContent, finalText);
     } else {
-      final genericBlockMatch = RegExp(r'```(?:[a-z]*)\s*([\s\S]*?)```', caseSensitive: false).firstMatch(finalText);
-      if (genericBlockMatch != null && (genericBlockMatch.group(1)!.contains('<!DOCTYPE html>') || genericBlockMatch.group(1)!.contains('<html'))) {
-        updatedHtml = genericBlockMatch.group(1)!.trim();
-      } else {
-        final docTypeStart = finalText.indexOf('<!DOCTYPE html');
-        final htmlStart = finalText.indexOf('<html');
-        final startIdx = docTypeStart >= 0 ? docTypeStart : (htmlStart >= 0 ? htmlStart : -1);
-        final endIdx = finalText.lastIndexOf('</html>');
-        if (startIdx >= 0 && endIdx > startIdx) {
-          updatedHtml = finalText.substring(startIdx, endIdx + 7).trim();
-        }
-      }
+      // Fallback: extract full HTML from <html_app> tags or code blocks
+      updatedHtml = MiniAppCodePatcher.extractAppCode(finalText);
     }
 
-    if (updatedHtml != null && updatedHtml.isNotEmpty) {
+    if (updatedHtml.isNotEmpty && updatedHtml != widget.project.htmlContent) {
       widget.project.htmlContent = updatedHtml;
       await widget.projectManager.updateProjectHtml(widget.project.id, updatedHtml);
     }

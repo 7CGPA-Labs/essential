@@ -1,11 +1,11 @@
-# ⚡ Essential AI — On-Device Intelligence & Workflow Engine
+# ⚡ CodingSaathi AI — On-Device Agentic Pair Programmer
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?logo=flutter)](https.flutter.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?logo=flutter)](https://flutter.dev)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.18.0-00599C?logo=onnx)](https://onnxruntime.ai)
-[![OpenCL GPU](https://img.shields.io/badge/Hardware-Snapdragon_8_Gen_3_(Adreno_750)-FF6F00?logo=qualcomm)](https://qualcomm.com)
+[![Hardware Acceleration](https://img.shields.io/badge/Hardware-Snapdragon_8_Gen_3_(Adreno_750)-FF6F00?logo=qualcomm)](https://qualcomm.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Essential AI** is an on-device AI assistant, DAG workflow pipeline, and mini-app execution environment designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (SLMs) with a dedicated C++ ONNX Runtime NPU Sidecar Engine and hardware-integrated HTML5 mini-apps.
+**CodingSaathi AI** is an on-device AI pair programmer, DAG workflow pipeline, and mini-app execution environment designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (SLMs) like Qwen2.5-Coder-1.5B with a dedicated C++ ONNX Runtime NPU Sidecar Engine, a Diff-Based HTML Mini-App Code Patcher, and hardware-integrated HTML5 mini-apps.
 
 ---
 
@@ -13,7 +13,7 @@
 
 ```
                                     ┌────────────────────────────────────────────────────────┐
-                                    │                   ESSENTIAL AI SYSTEM                  │
+                                    │                  CODINGSAATHI AI SYSTEM                │
                                     └───────────────────────────┬────────────────────────────┘
                                                                 │
                    ┌────────────────────────────────────────────┴────────────────────────────────────────────┐
@@ -45,9 +45,9 @@
     ┌─────────────────────────────┐              ┌─────────────────────────────┐              ┌─────────────────────────────┐
     │     CHAT UI & SLM ENGINE    │              │     HTML5 MINI APPS HUB     │              │    DAG WORKFLOW ENGINE      │
     ├─────────────────────────────┤              ├─────────────────────────────┤              ├─────────────────────────────┤
-    │  • Dynamic Token Scaling    │              │  • Android WebView Engine   │              │  • Visual Node Canvas       │
-    │  • Multi-Turn Memory        │              │  • Hardware JS Bridge       │              │  • Sensor Triggers          │
-    │  • Markdown & Code Parser   │              │  • Background Foreground    │              │  • Condition Gates & Actions│
+    │  • Dynamic Token Scaling    │              │  • Secure WebView Sandbox   │              │  • Visual Node Canvas       │
+    │  • Diff-Based Editing Engine│              │  • FlutterBridge & CSP Meta │              │  • Sensor Triggers          │
+    │  • XML Tag Extraction       │              │  • Hardware JS Bridge       │              │  • Condition Gates & Actions│
     └─────────────────────────────┘              └─────────────────────────────┘              └─────────────────────────────┘
 ```
 
@@ -59,27 +59,54 @@
 - **Primary GPU Engine (`llama.cpp`)**: Executes `Qwen2.5-Coder-1.5B` via OpenCL on Qualcomm Adreno 750 with 100% layer offload.
 - **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `bge-small-en-v1.5` embeddings, `CodeBERTa` language detection, and `PP-OCRv4` extraction without consuming GPU VRAM or main thread cycles.
 
-### 2. 📲 HTML+CSS+JS Mini Apps & Native Hardware Bridge (`window.Essential`)
-Full Android WebView container executing self-contained web apps created on the fly by the on-device SLM or user:
+### 2. ⚡ HTML Mini-App Pipeline & Diff Editing Engine (`MiniAppCodePatcher`)
+Specially engineered for Small Language Models (~1.5B parameters) to prevent token hallucination, full-file regeneration fatigue, and JSON escaping errors:
+- 🏷️ **XML Tag Extraction (`MiniAppPrompts`)**: Enforces code generation inside `<html_app>...</html_app>` tags for new apps and `<code_diff>...</code_diff>` for edits, completely ignoring conversational raw text outside tags.
+- ✂️ **Search / Replace Diff Editing Strategy**: Applies exact `<<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE` diff blocks directly to stored HTML files in local storage without requiring full file rewrites.
+- 🛡️ **HTML Auto-Repair**: Automatically detects and repairs unclosed `</script>`, `</body>`, or `</html>` tags to prevent execution failures in WebViews.
+
+### 3. 📲 Secure WebView Sandbox & Native Host Bridge (`window.FlutterBridge` & `window.Essential`)
+Full Android WebView sandbox container with automatic Content Security Policy (CSP) meta tag injection and structured native bridge communication:
+- 🌉 **Host Bridge Wrapper**: Dedicated `FlutterChannel` receiving JSON messages (`{ method, payload }`) with `window.FlutterBridge.callNative(method, payload)`.
 - 📍 **GPS & Geofencing**: `Essential.getLocation()`, `Essential.watchLocation()`, `Essential.setGeoAlarm(lat, lng, r, title, body)`
-- 🔔 **Dedicated Notifications**: Static notifications + Ongoing Live status bar items (`Essential.startLiveNotification`, `updateLiveNotification`)
+- 🔔 **Notifications**: Static alerts + Ongoing Live status bar notifications (`Essential.startLiveNotification`, `updateLiveNotification`)
 - 🌀 **Hardware Sensors**: Gyroscope, Accelerometer, Magnetometer motion streams (`Essential.watchSensor`)
 - 💡 **Camera Flashlight**: Direct hardware torch toggle (`Essential.setFlashlight`)
-- 📶 **Connectivity**: Live WiFi and Cellular RSSI telemetry (`Essential.getNetworkStatus`)
+- 📶 **Connectivity**: Live WiFi and Cellular network telemetry (`Essential.getNetworkStatus`)
 - ⚙️ **Background Mode**: Promotes to an Android Foreground Service so mini apps continue tracking GPS and firing alerts when minimized.
 
-### 3. 🔄 DAG Workflow Canvas
+### 4. 🔄 DAG Workflow Canvas
 Node-based pipeline engine inspired by Nothing OS Essential Workflows:
 - **Triggers**: GPS Location, Motion Sensors, Time, Static Input.
 - **Logic**: On-Device SLM Inference, JavaScript Condition Gates (`input.length > 10`).
 - **Actions**: Native Push Notifications, Camera Flashlight Pulses, UI Summaries.
 
-### 4. 🌐 Production MCP (Model Context Protocol) Server
+### 5. 🌐 Production MCP (Model Context Protocol) Server
 On-device JSON-RPC 2.0 HTTP server listening on your device's local IP address (`http://<device-ip>:8080`):
 - `Device.getSystemInfo`: Queries hardware layer metrics.
 - `QuickJS.eval`: Executes sandboxed JavaScript with watchdog limits.
 - `VisionAdapter.ocr`: Image text extraction pipeline.
 - `MiniApp.createWidget`: Generates dynamic widget specifications.
+
+---
+
+## 🛠️ Project Structure
+
+```text
+lib/
+├── ffi/                         # FFI Bindings for llama.cpp & ONNX Sidecar Isolate
+├── mcp/                         # Model Context Protocol JSON-RPC Server
+├── mini_apps/
+│   ├── mini_app_code_patcher.dart # Diff-based Search/Replace & XML Tag Extractor
+│   ├── mini_app_prompts.dart      # Prompt Contracts (<html_app> & <code_diff>)
+│   ├── web_view_sandbox.dart      # Secure WebView Sandbox, CSP & FlutterBridge Shell
+│   ├── mini_app_webview.dart      # Full-Screen WebView Widget & JS Channel Handler
+│   ├── mini_app_manager.dart      # Mini App Registry & Seed Templates
+│   └── mini_app_service.dart      # Foreground Background Service for Mini Apps
+└── projects/
+    ├── project_studio_page.dart   # Split-Screen Pair-Programming Canvas
+    └── project_manager.dart       # Local Project Storage & Index HTML Management
+```
 
 ---
 
@@ -99,21 +126,25 @@ com.example.essential/files/
 
 ---
 
-## 🚀 Building & Running
+## 🚀 Building & Testing
 
 ### Prerequisites
 - Flutter SDK `^3.29.0`
 - Android NDK `28.2.13676358` & CMake `3.22.1`
 - Android device running Android 10+ (API 29+)
 
+### Run Unit & Integration Tests
+```bash
+flutter test test/mini_app_code_patcher_test.dart
+```
+
+### Static Analysis
+```bash
+flutter analyze
+```
+
 ### Build APK
 ```bash
-# Get Flutter dependencies
-flutter pub get
-
-# Analyze static code
-flutter analyze
-
 # Build Debug APK
 flutter build apk --debug
 ```
