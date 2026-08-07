@@ -20,9 +20,9 @@ SidecarPipelineCoordinator::SidecarPipelineCoordinator(const std::string& ocrPat
         GenerateEmbedding("Essential JS bridge providing GPS, Notifications, Flashlight, and Sensor streams.")
     );
     AddEmbedding(
-        "lib/dag/dag_workflow.dart",
-        "DAG Workflow visual canvas routing hardware triggers to Qwen2.5 SLM logic nodes.",
-        GenerateEmbedding("DAG Workflow visual canvas routing hardware triggers to Qwen2.5 SLM logic nodes.")
+        "lib/projects/project_studio_page.dart",
+        "Split-screen pair programming studio for live HTML mini app generation and diff-based editing.",
+        GenerateEmbedding("Split-screen pair programming studio for live HTML mini app generation and diff-based editing.")
     );
 }
 

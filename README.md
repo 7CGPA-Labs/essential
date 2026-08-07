@@ -5,7 +5,7 @@
 [![Hardware Acceleration](https://img.shields.io/badge/Hardware-Snapdragon_8_Gen_3_(Adreno_750)-FF6F00?logo=qualcomm)](https://qualcomm.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**CodingSaathi AI** is an on-device AI pair programmer, DAG workflow pipeline, and mini-app execution environment designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (SLMs) like Qwen2.5-Coder-1.5B with a dedicated C++ ONNX Runtime NPU Sidecar Engine, a Diff-Based HTML Mini-App Code Patcher, and hardware-integrated HTML5 mini-apps.
+**CodingSaathi AI** is an on-device AI pair programmer, mini-app execution environment, and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (SLMs) like Qwen2.5-Coder-1.5B with a dedicated C++ ONNX Runtime NPU Sidecar Engine, a Diff-Based HTML Mini-App Code Patcher, and hardware-integrated HTML5 mini-apps.
 
 ---
 
@@ -43,11 +43,11 @@
                    │                                            │                                            │
                    ▼                                            ▼                                            ▼
     ┌─────────────────────────────┐              ┌─────────────────────────────┐              ┌─────────────────────────────┐
-    │     CHAT UI & SLM ENGINE    │              │     HTML5 MINI APPS HUB     │              │    DAG WORKFLOW ENGINE      │
+    │     CHAT UI & SLM ENGINE    │              │     HTML5 MINI APPS HUB     │              │    PROJECT STUDIO CANVAS    │
     ├─────────────────────────────┤              ├─────────────────────────────┤              ├─────────────────────────────┤
-    │  • Dynamic Token Scaling    │              │  • Secure WebView Sandbox   │              │  • Visual Node Canvas       │
-    │  • Diff-Based Editing Engine│              │  • FlutterBridge & CSP Meta │              │  • Sensor Triggers          │
-    │  • XML Tag Extraction       │              │  • Hardware JS Bridge       │              │  • Condition Gates & Actions│
+    │  • Dynamic Token Scaling    │              │  • Secure WebView Sandbox   │              │  • Split-Screen Editor      │
+    │  • Diff-Based Editing Engine│              │  • FlutterBridge & CSP Meta │              │  • Live Canvas Preview      │
+    │  • XML Tag Extraction       │              │  • Hardware JS Bridge       │              │  • On-Device Pair-Programmer│
     └─────────────────────────────┘              └─────────────────────────────┘              └─────────────────────────────┘
 ```
 
@@ -75,11 +75,11 @@ Full Android WebView sandbox container with automatic Content Security Policy (C
 - 📶 **Connectivity**: Live WiFi and Cellular network telemetry (`Essential.getNetworkStatus`)
 - ⚙️ **Background Mode**: Promotes to an Android Foreground Service so mini apps continue tracking GPS and firing alerts when minimized.
 
-### 4. 🔄 DAG Workflow Canvas
-Node-based pipeline engine inspired by Nothing OS Essential Workflows:
-- **Triggers**: GPS Location, Motion Sensors, Time, Static Input.
-- **Logic**: On-Device SLM Inference, JavaScript Condition Gates (`input.length > 10`).
-- **Actions**: Native Push Notifications, Camera Flashlight Pulses, UI Summaries.
+### 4. 🎨 Split-Screen Project Studio & Pair Programming Canvas
+On-device pair-programming interface for interactive mini-app development:
+- **Live Canvas Preview**: Real-time rendering of mini-app HTML/CSS/JS output on light canvas (`#FFFFFF`).
+- **Interactive Pair-Programmer**: On-device SLM logic engine generating exact `<code_diff>` patches in response to developer requests.
+- **Project Workspaces**: Persistent index HTML and config storage per project directory.
 
 ### 5. 🌐 Production MCP (Model Context Protocol) Server
 On-device JSON-RPC 2.0 HTTP server listening on your device's local IP address (`http://<device-ip>:8080`):
