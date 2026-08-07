@@ -7,13 +7,12 @@ using namespace essential;
 
 extern "C" {
 
-void* sidecar_init(const char* ocr_path, const char* lang_path, const char* embed_path, const char* db_path) {
-    std::string ocr = ocr_path ? ocr_path : "";
+void* sidecar_init(const char* lang_path, const char* embed_path, const char* db_path) {
     std::string lang = lang_path ? lang_path : "";
     std::string embed = embed_path ? embed_path : "";
     std::string db = db_path ? db_path : "";
 
-    auto* coordinator = new SidecarPipelineCoordinator(ocr, lang, embed, db);
+    auto* coordinator = new SidecarPipelineCoordinator(lang, embed, db);
     return static_cast<void*>(coordinator);
 }
 

@@ -20,8 +20,7 @@ struct VectorRecord {
 
 class SidecarPipelineCoordinator {
 public:
-    SidecarPipelineCoordinator(const std::string& ocrPath,
-                               const std::string& langPath,
+    SidecarPipelineCoordinator(const std::string& langPath,
                                const std::string& embedPath,
                                const std::string& dbPath);
     ~SidecarPipelineCoordinator();
@@ -33,12 +32,10 @@ public:
     std::vector<VectorRecord> SearchSimilar(const std::vector<float>& queryVec, size_t topK = 3);
 
 private:
-    std::string ExecuteOcr(const uint8_t* imgBytes, int32_t imgLen);
     std::string DetectLanguage(const std::string& codeText);
     std::vector<float> GenerateEmbedding(const std::string& text);
     static float CosineSimilarity(const std::vector<float>& a, const std::vector<float>& b);
 
-    std::string m_ocrPath;
     std::string m_langPath;
     std::string m_embedPath;
     std::string m_dbPath;

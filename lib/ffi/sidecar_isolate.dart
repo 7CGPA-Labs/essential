@@ -7,12 +7,11 @@ import 'sidecar_bindings.dart';
 abstract class _SidecarIsolateCommand {}
 
 class _InitCommand extends _SidecarIsolateCommand {
-  final String ocrPath;
   final String langPath;
   final String embedPath;
   final String dbPath;
 
-  _InitCommand(this.ocrPath, this.langPath, this.embedPath, this.dbPath);
+  _InitCommand(this.langPath, this.embedPath, this.dbPath);
 }
 
 class _ProcessCommand extends _SidecarIsolateCommand {
@@ -42,7 +41,7 @@ class SidecarIsolateService {
     final events = receivePort.asBroadcastStream();
     _toIsolatePort = await events.first as SendPort;
 
-    _toIsolatePort.send(_InitCommand('', '', '', ''));
+    _toIsolatePort.send(_InitCommand('', '', ''));
     _readyCompleter.complete();
   }
 
@@ -76,7 +75,6 @@ class SidecarIsolateService {
     fromMainPort.listen((msg) {
       if (msg is _InitCommand) {
         bindings.initialize(
-          ocrPath: msg.ocrPath,
           langPath: msg.langPath,
           embedPath: msg.embedPath,
           dbPath: msg.dbPath,

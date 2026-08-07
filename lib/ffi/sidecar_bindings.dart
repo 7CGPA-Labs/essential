@@ -14,13 +14,11 @@ final class SidecarResultStruct extends Struct {
 // ── Native C Signatures ─────────────────────────────────────────────────────
 
 typedef SidecarInitC = Pointer<Void> Function(
-  Pointer<Utf8> ocrPath,
   Pointer<Utf8> langPath,
   Pointer<Utf8> embedPath,
   Pointer<Utf8> dbPath,
 );
 typedef SidecarInitDart = Pointer<Void> Function(
-  Pointer<Utf8> ocrPath,
   Pointer<Utf8> langPath,
   Pointer<Utf8> embedPath,
   Pointer<Utf8> dbPath,
@@ -120,21 +118,18 @@ class SidecarBindings {
   bool get isInitialized => _handle != null;
 
   void initialize({
-    String ocrPath = '',
     String langPath = '',
     String embedPath = '',
     String dbPath = '',
   }) {
     if (_handle != null) return;
-    final ocrPtr = ocrPath.toNativeUtf8();
     final langPtr = langPath.toNativeUtf8();
     final embedPtr = embedPath.toNativeUtf8();
     final dbPtr = dbPath.toNativeUtf8();
 
     try {
-      _handle = _initNative(ocrPtr, langPtr, embedPtr, dbPtr);
+      _handle = _initNative(langPtr, embedPtr, dbPtr);
     } finally {
-      calloc.free(ocrPtr);
       calloc.free(langPtr);
       calloc.free(embedPtr);
       calloc.free(dbPtr);

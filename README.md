@@ -25,7 +25,7 @@
     │  • llama.cpp + OpenCL       │                                                           │  • ONNX Runtime C++ SDK     │
     │  • Qwen2.5-Coder-1.5B (GGUF)│                                                           │  • bge-small-en-v1.5 Embeds │
     │  • 100% VRAM Layer Offload  │                                                           │  • CodeBERTa Language ID    │
-    │  • Zero CPU Load            │                                                           │  • PP-OCRv4 Code Extraction │
+    │  • Zero CPU Load            │                                                           │  • Context Vector Search    │
     └──────────────┬──────────────┘                                                           └──────────────┬──────────────┘
                    │                                                                                         │
                    │                                                                                         │
@@ -57,7 +57,7 @@
 
 ### 1. 🧠 Heterogeneous On-Device AI Acceleration
 - **Primary GPU Engine (`llama.cpp`)**: Executes `Qwen2.5-Coder-1.5B` via OpenCL on Android Mobile GPUs with 100% layer offload.
-- **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `bge-small-en-v1.5` embeddings, `CodeBERTa` language detection, and `PP-OCRv4` extraction without consuming GPU VRAM or main thread cycles.
+- **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `bge-small-en-v1.5` embeddings and `CodeBERTa` language detection without consuming GPU VRAM or main thread cycles.
 
 ### 2. ⚡ HTML Mini-App Pipeline & Diff Editing Engine (`MiniAppCodePatcher`)
 Specially engineered for Small Language Models (~1.5B parameters) to prevent token hallucination, full-file regeneration fatigue, and JSON escaping errors:
@@ -85,7 +85,7 @@ On-device pair-programming interface for interactive mini-app development:
 On-device JSON-RPC 2.0 HTTP server listening on your device's local IP address (`http://<device-ip>:8080`):
 - `Device.getSystemInfo`: Queries hardware layer metrics.
 - `QuickJS.eval`: Executes sandboxed JavaScript with watchdog limits.
-- `VisionAdapter.ocr`: Image text extraction pipeline.
+- `VectorAdapter.search`: Context vector similarity search pipeline.
 - `MiniApp.createWidget`: Generates dynamic widget specifications.
 
 ---
@@ -156,8 +156,7 @@ com.example.essential/files/
 ├── qwen2.5-coder-1.5b.gguf          # Primary SLM (OpenCL GPU)
 └── models/
     ├── bge_small_v1.5.onnx          # 384-dim Dense Vector Embeddings
-    ├── codeberta.onnx               # Code Language Classifier
-    └── ocr_model.onnx               # PP-OCRv4 Text Extractor
+    └── codeberta.onnx               # Code Language Classifier
 ```
 
 ---

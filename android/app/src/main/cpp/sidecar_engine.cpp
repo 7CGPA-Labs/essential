@@ -7,11 +7,10 @@
 
 namespace essential {
 
-SidecarPipelineCoordinator::SidecarPipelineCoordinator(const std::string& ocrPath,
-                                                         const std::string& langPath,
+SidecarPipelineCoordinator::SidecarPipelineCoordinator(const std::string& langPath,
                                                          const std::string& embedPath,
                                                          const std::string& dbPath)
-    : m_ocrPath(ocrPath), m_langPath(langPath), m_embedPath(embedPath), m_dbPath(dbPath) {
+    : m_langPath(langPath), m_embedPath(embedPath), m_dbPath(dbPath) {
     
     // Seed vector store with initial codebase chunks for rapid dot-product retrieval
     AddEmbedding(
@@ -77,18 +76,6 @@ std::vector<VectorRecord> SidecarPipelineCoordinator::SearchSimilar(const std::v
     return results;
 }
 
-std::string SidecarPipelineCoordinator::ExecuteOcr(const uint8_t* imgBytes, int32_t imgLen) {
-    if (!imgBytes || imgLen <= 0) return "";
-
-    // Simulates ONNX Runtime PP-OCRv4 execution provider output decoding
-    std::ostringstream ss;
-    ss << "// Extracted from image (" << imgLen << " bytes):\n";
-    ss << "void onSensorTrigger(float val) {\n";
-    ss << "    Essential.notify(\"OCR Alert\", \"Value: \" + val);\n";
-    ss << "}";
-    return ss.str();
-}
-
 std::string SidecarPipelineCoordinator::DetectLanguage(const std::string& codeText) {
     if (codeText.find("void main") != std::string::npos || codeText.find("import 'package:") != std::string::npos) {
         return "dart";
@@ -120,19 +107,13 @@ std::vector<float> SidecarPipelineCoordinator::GenerateEmbedding(const std::stri
 }
 
 SidecarResult* SidecarPipelineCoordinator::Process(const uint8_t* imgBytes, int32_t imgLen, const std::string& userQuery) {
-    // Concurrent execution via std::async
-    auto futureOcr = std::async(std::launch::async, [this, imgBytes, imgLen]() {
-        return ExecuteOcr(imgBytes, imgLen);
-    });
-
     auto futureEmbed = std::async(std::launch::async, [this, &userQuery]() {
         return GenerateEmbedding(userQuery);
     });
 
-    std::string extractedCode = futureOcr.get();
     std::vector<float> queryVec = futureEmbed.get();
 
-    std::string detectedLang = DetectLanguage(userQuery + " " + extractedCode);
+    std::string detectedLang = DetectLanguage(userQuery);
     std::vector<VectorRecord> topDocs = SearchSimilar(queryVec, 2);
 
     std::string retrievedContext = "";
@@ -141,15 +122,14 @@ SidecarResult* SidecarPipelineCoordinator::Process(const uint8_t* imgBytes, int3
     }
 
     std::string fullPrompt =
-        "<|im_start|>system\nYou are Essential AI running on GPU.\n"
-        "Context:\n" + retrievedContext +
-        "\nExtracted Code (" + detectedLang + "):\n" + extractedCode + "<|im_end|>\n"
+        "<|im_start|>system\nYou are CodingSaathi AI running on GPU.\n"
+        "Context:\n" + retrievedContext + "<|im_end|>\n"
         "<|im_start|>user\n" + userQuery + "<|im_end|>\n"
         "<|im_start|>assistant\n";
 
     // Allocate SidecarResult heap pointers for C-ABI export
     SidecarResult* res = new SidecarResult();
-    res->extracted_code = strdup(extractedCode.c_str());
+    res->extracted_code = strdup("");
     res->detected_language = strdup(detectedLang.c_str());
     res->retrieved_context = strdup(retrievedContext.c_str());
     res->fully_formatted_prompt = strdup(fullPrompt.c_str());

@@ -16,13 +16,12 @@ typedef struct SidecarResult {
 
 /**
  * Initializes the ONNX Runtime Sidecar Engine & Vector Store.
- * @param ocr_path Path to OCR model (.onnx) or empty string for native fallback
  * @param lang_path Path to CodeBERTa classifier (.onnx) or empty string
  * @param embed_path Path to bge-small-en-v1.5 (.onnx) or empty string
  * @param db_path Path to local vector database / storage
  * @return Opaque pointer handle to SidecarPipelineCoordinator
  */
-void* sidecar_init(const char* ocr_path, const char* lang_path, const char* embed_path, const char* db_path);
+void* sidecar_init(const char* lang_path, const char* embed_path, const char* db_path);
 
 /**
  * Processes image input, query, and context vector search concurrently.
