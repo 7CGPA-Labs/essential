@@ -2,7 +2,7 @@
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?logo=flutter)](https://flutter.dev)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.18.0-00599C?logo=onnx)](https://onnxruntime.ai)
-[![Hardware Acceleration](https://img.shields.io/badge/Hardware-Snapdragon_8_Gen_3_(Adreno_750)-FF6F00?logo=qualcomm)](https://qualcomm.com)
+[![Hardware Acceleration](https://img.shields.io/badge/Hardware-Android_OpenCL_GPU-FF6F00?logo=android)](https://developer.android.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **CodingSaathi AI** is an on-device AI pair programmer, mini-app execution environment, and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (SLMs) like Qwen2.5-Coder-1.5B with a dedicated C++ ONNX Runtime NPU Sidecar Engine, a Diff-Based HTML Mini-App Code Patcher, and hardware-integrated HTML5 mini-apps.
@@ -56,7 +56,7 @@
 ## ✨ Key Features
 
 ### 1. 🧠 Heterogeneous On-Device AI Acceleration
-- **Primary GPU Engine (`llama.cpp`)**: Executes `Qwen2.5-Coder-1.5B` via OpenCL on Qualcomm Adreno 750 with 100% layer offload.
+- **Primary GPU Engine (`llama.cpp`)**: Executes `Qwen2.5-Coder-1.5B` via OpenCL on Android Mobile GPUs with 100% layer offload.
 - **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `bge-small-en-v1.5` embeddings, `CodeBERTa` language detection, and `PP-OCRv4` extraction without consuming GPU VRAM or main thread cycles.
 
 ### 2. ⚡ HTML Mini-App Pipeline & Diff Editing Engine (`MiniAppCodePatcher`)

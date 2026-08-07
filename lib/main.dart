@@ -137,7 +137,7 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
       setState(() => _gpuInfo = info.isNotEmpty ? info : 'CPU Inference');
     } catch (_) {
       if (!mounted) return;
-      setState(() => _gpuInfo = 'Qualcomm Adreno OpenCL GPU');
+      setState(() => _gpuInfo = 'Android OpenCL GPU');
     }
   }
 
@@ -322,8 +322,8 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
             'Token Category: ${sidecarRes.detectedLanguage}\n'
             'Vector Context: ${sidecarRes.retrievedContext.isNotEmpty ? "Codebase Context Retained" : "Universal Web Search"}\n'
             'Web Search Status: ${webSearchContext.isNotEmpty ? "Live Internet Results Injected" : "Offline Synthesis"}\n'
-            'Execution Provider: Qualcomm Hexagon NPU / NNAPI'
-        : 'Executed on-device Qwen2.5-Coder SLM engine on Adreno GPU.';
+            'Execution Provider: Android NPU / NNAPI'
+        : 'Executed on-device Qwen2.5-Coder SLM engine on Mobile GPU.';
 
     final assistantIndex = _chatMessages.length - 1;
     setState(() {

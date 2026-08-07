@@ -182,7 +182,7 @@ class McpServer {
     }
 
     final formattedPrompt =
-        '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.<|im_end|>\n'
+        '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Mobile GPU.<|im_end|>\n'
         '<|im_start|>user\n$userMessage<|im_end|>\n'
         '<|im_start|>assistant\n';
 
@@ -448,9 +448,9 @@ class McpServer {
                 {
                   'type': 'text',
                   'text': jsonEncode({
-                    'device': 'POCO Snapdragon 8 Gen 3',
+                    'device': 'Android Device',
                     'gpu': gpuInfo,
-                    'npu': 'Qualcomm Hexagon ONNX Sidecar Engine (bge-small + CodeBERTa)',
+                    'npu': 'Android ONNX Sidecar Engine (bge-small + CodeBERTa)',
                     'status': 'OPERATIONAL'
                   })
                 }
