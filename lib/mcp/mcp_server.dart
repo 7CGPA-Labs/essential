@@ -83,6 +83,7 @@ class McpServer {
       };
 
   Response _handleListModels(Request request) {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     return Response.ok(
       jsonEncode({
         'object': 'list',
@@ -90,16 +91,43 @@ class McpServer {
           {
             'id': 'qwen2.5-coder-1.5b',
             'object': 'model',
-            'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            'owned_by': 'codingsaathi-ondevice',
+            'created': now,
+            'owned_by': 'codingsaathi-gpu',
             'permission': [],
             'root': 'qwen2.5-coder-1.5b',
             'parent': null,
           },
           {
+            'id': 'embeddinggemma-300m',
+            'object': 'model',
+            'created': now,
+            'owned_by': 'codingsaathi-npu',
+            'permission': [],
+            'root': 'embeddinggemma-300m',
+            'parent': null,
+          },
+          {
+            'id': 'all-MiniLM-L6-v2',
+            'object': 'model',
+            'created': now,
+            'owned_by': 'codingsaathi-npu',
+            'permission': [],
+            'root': 'all-MiniLM-L6-v2',
+            'parent': null,
+          },
+          {
+            'id': 'bge-reranker-base',
+            'object': 'model',
+            'created': now,
+            'owned_by': 'codingsaathi-npu',
+            'permission': [],
+            'root': 'bge-reranker-base',
+            'parent': null,
+          },
+          {
             'id': 'bge-small-en-v1.5',
             'object': 'model',
-            'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            'created': now,
             'owned_by': 'codingsaathi-npu',
             'permission': [],
             'root': 'bge-small-en-v1.5',
@@ -450,7 +478,7 @@ class McpServer {
                   'text': jsonEncode({
                     'device': 'Android Device',
                     'gpu': gpuInfo,
-                    'npu': 'Android ONNX Sidecar Engine (bge-small + CodeBERTa)',
+                    'npu': 'Android ONNX Sidecar Engine (all-MiniLM-L6-v2 + bge-small-v1.5 + bge-reranker-base)',
                     'status': 'OPERATIONAL'
                   })
                 }

@@ -56,8 +56,16 @@
 ## ✨ Key Features
 
 ### 1. 🧠 Heterogeneous On-Device AI Acceleration
+
+| Pipeline Component | Assigned Model | Hardware Engine | Why This Model & Engine? |
+| :--- | :--- | :--- | :--- |
+| **Intent Classifier** | `all-MiniLM-L6-v2` (~23 MB) | **NPU** | Sub-10ms execution, ultra-low power idle state. |
+| **Code Embeddings** | `bge-small-en-v1.5` (~133 MB) | **NPU** | **4.5x more efficient than EmbeddingGemma**; sub-ms dot-product throughput. |
+| **RAG Re-ranker** | `bge-reranker-base` (~110 MB) | **NPU** | High-precision text pair classification & context filtering before SLM. |
+| **Code Generation** | `qwen2.5-coder-1.5b` (~1.1 GB) | **GPU** | Dedicated memory bandwidth for high-speed token generation. |
+
 - **Primary GPU Engine (`llama.cpp`)**: Executes `Qwen2.5-Coder-1.5B` via OpenCL on Android Mobile GPUs with 100% layer offload.
-- **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `bge-small-en-v1.5` embeddings and `CodeBERTa` language detection without consuming GPU VRAM or main thread cycles.
+- **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `all-MiniLM-L6-v2`, `bge-small-en-v1.5`, and `bge-reranker-base` without consuming GPU VRAM or main thread cycles.
 
 ### 2. ⚡ HTML Mini-App Pipeline & Diff Editing Engine (`MiniAppCodePatcher`)
 Specially engineered for Small Language Models (~1.5B parameters) to prevent token hallucination, full-file regeneration fatigue, and JSON escaping errors:
@@ -153,10 +161,12 @@ Save GGUF and ONNX models on device storage at:
 
 ```text
 com.example.essential/files/
-├── qwen2.5-coder-1.5b.gguf          # Primary SLM (OpenCL GPU)
+├── qwen2.5-coder-1.5b.gguf          # Primary Code Generation SLM (OpenCL GPU)
 └── models/
-    ├── bge_small_v1.5.onnx          # 384-dim Dense Vector Embeddings
-    └── codeberta.onnx               # Code Language Classifier
+    ├── all_minilm_l6_v2.onnx        # Intent Classifier (~23 MB, NPU)
+    ├── bge_small_v1.5.onnx          # Code Embeddings & Vector Search (~133 MB, NPU)
+    ├── bge_reranker_base.onnx       # RAG Re-ranker (~110 MB, NPU)
+    └── codeberta.onnx               # Code Language Classifier (~90 MB, NPU)
 ```
 
 ---

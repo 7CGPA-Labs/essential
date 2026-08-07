@@ -318,7 +318,7 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     }
 
     final thinkingSummary = sidecarRes != null
-        ? 'ONNX NLP Models: bge_small_v1.5.onnx + codeberta.onnx\n'
+        ? 'ONNX NPU Pipeline: all_minilm_l6_v2 (Intent) + bge_small_v1.5 (Embeddings) + bge_reranker_base (Reranker)\n'
             'Token Category: ${sidecarRes.detectedLanguage}\n'
             'Vector Context: ${sidecarRes.retrievedContext.isNotEmpty ? "Codebase Context Retained" : "Universal Web Search"}\n'
             'Web Search Status: ${webSearchContext.isNotEmpty ? "Live Internet Results Injected" : "Offline Synthesis"}\n'
