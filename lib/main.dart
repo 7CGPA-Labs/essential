@@ -83,11 +83,13 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
   double _npuLoad = 0.0;
   Timer? _healthTimer;
 
+  StreamSubscription<String>? _mcpLogSub;
+
   @override
   void initState() {
     super.initState();
     _mcpServer = McpServer(_llamaIsolate);
-    _mcpServer.logStream.listen((logMsg) {
+    _mcpLogSub = _mcpServer.logStream.listen((logMsg) {
       if (!mounted) return;
       setState(() {
         _serverLogs.add(logMsg);
@@ -123,6 +125,7 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
 
   Future<void> _fetchDeviceIp() async {
     final ip = await McpServer.getLocalIpAddress();
+    if (!mounted) return;
     setState(() => _deviceIp = ip);
   }
 
@@ -130,8 +133,10 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     try {
       final ptr = LlamaCppNative.getGpuInfo();
       final info = ptr.toDartString();
+      if (!mounted) return;
       setState(() => _gpuInfo = info.isNotEmpty ? info : 'CPU Inference');
     } catch (_) {
+      if (!mounted) return;
       setState(() => _gpuInfo = 'Qualcomm Adreno OpenCL GPU');
     }
   }
@@ -509,6 +514,7 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
 
   @override
   void dispose() {
+    _mcpLogSub?.cancel();
     _healthTimer?.cancel();
     _mcpServer.stop();
     _llamaIsolate.dispose();

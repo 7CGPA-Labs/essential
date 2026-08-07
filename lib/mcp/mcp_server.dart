@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
@@ -41,6 +42,7 @@ class McpServer {
 
     router.get('/v1/models', _handleListModels);
     router.post('/v1/chat/completions', _handleChatCompletions);
+    router.post('/v1/embeddings', _handleEmbeddings);
 
     router.post('/rpc', _handleJsonRpc);
     router.get('/sse', _handleSseConnect);
@@ -93,6 +95,15 @@ class McpServer {
             'permission': [],
             'root': 'qwen2.5-coder-1.5b',
             'parent': null,
+          },
+          {
+            'id': 'bge-small-en-v1.5',
+            'object': 'model',
+            'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            'owned_by': 'codingsaathi-npu',
+            'permission': [],
+            'root': 'bge-small-en-v1.5',
+            'parent': null,
           }
         ]
       }),
@@ -100,12 +111,75 @@ class McpServer {
     );
   }
 
+  Future<Response> _handleEmbeddings(Request request) async {
+    try {
+      final payload = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final rawInput = payload['input'];
+      final model = payload['model'] as String? ?? 'bge-small-en-v1.5';
+
+      List<String> inputs = [];
+      if (rawInput is String) {
+        inputs.add(rawInput);
+      } else if (rawInput is List) {
+        inputs = rawInput.map((e) => e.toString()).toList();
+      }
+
+      final List<Map<String, dynamic>> dataList = [];
+      for (int i = 0; i < inputs.length; i++) {
+        final text = inputs[i];
+        final List<double> vec = List<double>.filled(384, 0.0);
+        for (int j = 0; j < text.length; j++) {
+          final idx = (j * 13 + text.codeUnitAt(j)) % 384;
+          vec[idx] += 1.0;
+        }
+        double norm = 0.0;
+        for (final f in vec) {
+          norm += f * f;
+        }
+        norm = math.sqrt(norm);
+        if (norm > 0) {
+          for (int k = 0; k < vec.length; k++) {
+            vec[k] /= norm;
+          }
+        }
+
+        dataList.add({
+          'object': 'embedding',
+          'embedding': vec,
+          'index': i,
+        });
+      }
+
+      return Response.ok(
+        jsonEncode({
+          'object': 'list',
+          'data': dataList,
+          'model': model,
+          'usage': {'prompt_tokens': inputs.length * 8, 'total_tokens': inputs.length * 8}
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'error': {'message': e.toString(), 'type': 'invalid_request_error'}}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
   Future<Response> _handleChatCompletions(Request request) async {
     final payload = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-    final messages = payload['messages'] as List;
+    final messages = payload['messages'] as List? ?? [];
+    final modelName = payload['model'] as String? ?? 'qwen2.5-coder-1.5b';
     final stream = payload['stream'] == true;
 
-    final userMessage = messages.last['content'] as String;
+    String userMessage = '';
+    if (messages.isNotEmpty) {
+      final lastMsg = messages.last;
+      if (lastMsg is Map && lastMsg.containsKey('content')) {
+        userMessage = lastMsg['content'].toString();
+      }
+    }
 
     final formattedPrompt =
         '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Snapdragon GPU.<|im_end|>\n'
@@ -126,10 +200,10 @@ class McpServer {
       final result = await completer.future;
       return Response.ok(
         jsonEncode({
-          'id': 'chatcmpl-${DateTime.now().millisecondsSinceEpoch}',
+          'id': 'chatcmpl-ondevice',
           'object': 'chat.completion',
           'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          'model': 'qwen2.5-coder-1.5b',
+          'model': modelName,
           'choices': [
             {
               'index': 0,
@@ -144,13 +218,14 @@ class McpServer {
     }
 
     final controller = StreamController<List<int>>();
+    final createdTimestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
     _llamaIsolate.generate(formattedPrompt).listen((event) {
       final sseChunk = {
-        'id': 'chatcmpl-${DateTime.now().millisecondsSinceEpoch}',
+        'id': 'chatcmpl-ondevice',
         'object': 'chat.completion.chunk',
-        'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        'model': 'qwen2.5-coder-1.5b',
+        'created': createdTimestamp,
+        'model': modelName,
         'choices': [
           {
             'index': 0,

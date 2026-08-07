@@ -90,6 +90,42 @@ On-device JSON-RPC 2.0 HTTP server listening on your device's local IP address (
 
 ---
 
+## 🔌 Continue.dev & Desktop IDE Integration
+
+Connect **Continue.dev**, **Cline**, or **Roo Code** in VS Code directly to your Android device running CodingSaathi AI over USB ADB or local Wi-Fi:
+
+### Step 1: Forward Port via ADB
+```bash
+adb forward tcp:8080 tcp:8080
+```
+
+### Step 2: Configure Continue.dev (`~/.continue/config.json`)
+```json
+{
+  "models": [
+    {
+      "title": "On-Device Android SLM (Qwen2.5-Coder)",
+      "provider": "openai",
+      "model": "qwen2.5-coder-1.5b",
+      "apiBase": "http://localhost:8080/v1"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "On-Device Autocomplete",
+    "provider": "openai",
+    "model": "qwen2.5-coder-1.5b",
+    "apiBase": "http://localhost:8080/v1"
+  },
+  "embeddingsProvider": {
+    "provider": "openai",
+    "model": "bge-small-en-v1.5",
+    "apiBase": "http://localhost:8080/v1"
+  }
+}
+```
+
+---
+
 ## 🛠️ Project Structure
 
 ```text

@@ -45,6 +45,20 @@ typedef SidecarFreeResultDart = void Function(Pointer<SidecarResultStruct> resul
 typedef SidecarDestroyC = Void Function(Pointer<Void> handle);
 typedef SidecarDestroyDart = void Function(Pointer<Void> handle);
 
+typedef StartNativeServerC = Void Function(
+  Pointer<Utf8> ggufPath,
+  Pointer<Utf8> onnxPath,
+  Int32 port,
+);
+typedef StartNativeServerDart = void Function(
+  Pointer<Utf8> ggufPath,
+  Pointer<Utf8> onnxPath,
+  int port,
+);
+
+typedef StopNativeServerC = Void Function();
+typedef StopNativeServerDart = void Function();
+
 // ── High Level Result Class ─────────────────────────────────────────────────
 
 class SidecarResult {
@@ -79,6 +93,27 @@ class SidecarBindings {
 
   static final SidecarDestroyDart _destroyNative =
       _lib.lookupFunction<SidecarDestroyC, SidecarDestroyDart>('sidecar_destroy');
+
+  static final StartNativeServerDart _startNativeServer =
+      _lib.lookupFunction<StartNativeServerC, StartNativeServerDart>('start_native_mcp_server');
+
+  static final StopNativeServerDart _stopNativeServer =
+      _lib.lookupFunction<StopNativeServerC, StopNativeServerDart>('stop_native_mcp_server');
+
+  static void startNativeServer({required String ggufPath, required String onnxPath, int port = 8080}) {
+    final ggufPtr = ggufPath.toNativeUtf8();
+    final onnxPtr = onnxPath.toNativeUtf8();
+    try {
+      _startNativeServer(ggufPtr, onnxPtr, port);
+    } finally {
+      calloc.free(ggufPtr);
+      calloc.free(onnxPtr);
+    }
+  }
+
+  static void stopNativeServer() {
+    _stopNativeServer();
+  }
 
   Pointer<Void>? _handle;
 

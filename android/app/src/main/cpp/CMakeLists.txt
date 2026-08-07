@@ -23,11 +23,12 @@ set_target_properties(libggml_cpu  PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}
 set_target_properties(libggml_opencl PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}/libggml-opencl.so)
 set_target_properties(libomp PROPERTIES IMPORTED_LOCATION ${LLAMA_JNI_DIR}/libomp.so)
 
-# Our FFI wrapper: real llama.cpp + ONNX Sidecar engine
+# Our FFI wrapper: real llama.cpp + ONNX Sidecar engine + Native HTTP/SSE Server
 add_library(essential_native SHARED
     llama_wrapper.cpp
     sidecar_engine.cpp
     sidecar_c_api.cpp
+    native_server.cpp
 )
 
 target_include_directories(essential_native PRIVATE
