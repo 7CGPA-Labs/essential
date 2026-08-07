@@ -31,7 +31,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   ffi: ^2.2.0

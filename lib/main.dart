@@ -212,11 +212,19 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     if (_mcpStatus == 'Server Offline') {
       await _mcpServer.start();
       await _fetchDeviceIp();
+      try {
+        SidecarBindings.startNativeServer(ggufPath: '', onnxPath: '', port: 8080);
+      } catch (_) {}
+      if (!mounted) return;
       setState(() {
         _mcpStatus = 'Listening on http://$_deviceIp:8080';
       });
     } else {
       await _mcpServer.stop();
+      try {
+        SidecarBindings.stopNativeServer();
+      } catch (_) {}
+      if (!mounted) return;
       setState(() {
         _mcpStatus = 'Server Offline';
       });
