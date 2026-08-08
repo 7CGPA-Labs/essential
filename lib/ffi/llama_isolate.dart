@@ -37,29 +37,61 @@ class TokenResponse {
 // ── Public wrapper ────────────────────────────────────────────────────────────
 
 class LlamaIsolateWrapper {
-  late SendPort _toIsolatePort;
-  final _readyCompleter = Completer<void>();
+  SendPort? _toIsolatePort;
+  final Completer<bool> _readyCompleter = Completer<bool>();
+  bool _isInitialized = false;
 
-  Future<void> init(String modelPath, int backend, int threads) async {
-    final receivePort = ReceivePort();
-    await Isolate.spawn(_llamaIsolateEntryPoint, receivePort.sendPort);
+  Future<bool> init(String modelPath, int backend, int threads) async {
+    if (_isInitialized) return true;
+    try {
+      final receivePort = ReceivePort();
+      await Isolate.spawn(_llamaIsolateEntryPoint, receivePort.sendPort);
 
-    final events = receivePort.asBroadcastStream();
-    _toIsolatePort = await events.first as SendPort;
+      final events = receivePort.asBroadcastStream();
+      _toIsolatePort = await events.first as SendPort;
 
-    final initReplyPort = ReceivePort();
-    _toIsolatePort.send(InitCommand(modelPath, backend, threads, initReplyPort.sendPort));
+      final initReplyPort = ReceivePort();
+      _toIsolatePort!.send(InitCommand(modelPath, backend, threads, initReplyPort.sendPort));
 
-    final success = await initReplyPort.first as bool;
-    if (!success) throw Exception('Failed to initialize Llama model');
-    _readyCompleter.complete();
+      final success = await initReplyPort.first as bool;
+      _isInitialized = success;
+      if (!_readyCompleter.isCompleted) {
+        _readyCompleter.complete(success);
+      }
+      return success;
+    } catch (e) {
+      if (!_readyCompleter.isCompleted) {
+        _readyCompleter.complete(false);
+      }
+      return false;
+    }
   }
 
   /// Stream tokens one-by-one from the background isolate with optional GBNF grammar constraint.
   Stream<TokenResponse> generate(String prompt, {String? grammar, int maxNewTokens = 512}) async* {
-    await _readyCompleter.future;
+    if (!_isInitialized) {
+      bool ready = false;
+      if (_readyCompleter.isCompleted) {
+        ready = await _readyCompleter.future;
+      } else {
+        ready = await _readyCompleter.future.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => false,
+        );
+      }
+
+      if (!ready || _toIsolatePort == null) {
+        yield TokenResponse(
+          "⚠️ Qwen2.5-Coder GGUF model is not loaded or missing on device.\n\n"
+          "Please verify that `qwen2.5-coder-1.5b.gguf` is placed in your Download folder (`/sdcard/Download/qwen2.5-coder-1.5b.gguf`).",
+          true,
+        );
+        return;
+      }
+    }
+
     final tokenPort = ReceivePort();
-    _toIsolatePort.send(GenerateCommand(prompt, grammar, maxNewTokens, tokenPort.sendPort));
+    _toIsolatePort!.send(GenerateCommand(prompt, grammar, maxNewTokens, tokenPort.sendPort));
 
     await for (final msg in tokenPort) {
       if (msg is TokenResponse) {
@@ -70,7 +102,7 @@ class LlamaIsolateWrapper {
   }
 
   void dispose() {
-    _toIsolatePort.send(FreeCommand());
+    _toIsolatePort?.send(FreeCommand());
   }
 
   // ── Background isolate entry point ──────────────────────────────────────────

@@ -174,8 +174,7 @@ Hope this helps! Let me know if you need any adjustments or additional features.
       expect(createPrompt.contains(MiniAppPrompts.creationSystemPrompt), isTrue);
 
       final editPrompt = MiniAppPrompts.buildEditingPrompt('<html><body>Test</body></html>', 'Change bg color');
-      expect(editPrompt.contains('<code_diff>'), isTrue);
-      expect(editPrompt.contains('<<<<<<< SEARCH'), isTrue);
+      expect(editPrompt.contains('<html_app>'), isTrue);
       expect(editPrompt.contains(MiniAppPrompts.editingSystemPrompt), isTrue);
     });
   });

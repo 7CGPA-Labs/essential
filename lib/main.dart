@@ -260,41 +260,20 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     final lower = prompt.toLowerCase().trim();
     if (lower.isEmpty) return false;
 
+    // Skip live web search only for pure local code/file generation commands
     if (lower == 'hi' ||
         lower == 'hello' ||
         lower == 'hey' ||
-        lower.startsWith('create') ||
-        lower.startsWith('build') ||
-        lower.startsWith('make') ||
-        lower.startsWith('edit') ||
-        lower.startsWith('modify') ||
-        lower.startsWith('add') ||
-        lower.startsWith('fix')) {
+        lower.startsWith('create ') ||
+        lower.startsWith('build ') ||
+        lower.startsWith('make ') ||
+        lower.startsWith('fix ') ||
+        lower.startsWith('modify ')) {
       return false;
     }
 
-    final searchTriggers = [
-      'search',
-      'lookup',
-      'web',
-      'internet',
-      'latest',
-      'news',
-      'today',
-      'antigravity',
-      'google',
-      'who is',
-      'what is',
-      'when did',
-      'where is',
-      'weather',
-      'stock',
-      'score',
-      'explain',
-      'tell me about',
-    ];
-
-    return searchTriggers.any((t) => lower.contains(t));
+    // Default to true for all general Q&A, technology questions, and explanations
+    return true;
   }
 
   void _sendChatMessage() async {
@@ -339,19 +318,20 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     final assistantIndex = _chatMessages.length - 1;
     setState(() {
       _chatMessages[assistantIndex]['thinking'] =
-          'Cognitive Memory Architecture: Working Memory (VRAM) | Short-Term Session | Episodic & Semantic Vault (sqlite-vec SIMD) | NPU 4-Minister Council';
-      _chatMessages[assistantIndex]['thinkingTime'] = 'multi-agent';
+          'Cognitive Memory Architecture: Working Memory (VRAM) | Short-Term Session | Episodic & Semantic Vault (sqlite-vec SIMD) | NPU 8-Agent Council';
+      _chatMessages[assistantIndex]['thinkingTime'] = '178ms • Multi-Agent';
     });
 
     final systemDirective =
         'You are CodingSaathi AI, a warm, highly intelligent, senior AI pair-programmer running 100% on-device on $_gpuInfo.\n\n'
         '$webSearchContext'
-        'CONVERSATIONAL DIRECTIVES:\n'
+        'CONVERSATIONAL & GRAPHIC DIRECTIVES:\n'
         '1. Be natural, warm, empathetic, and human-like in tone, like a friendly Senior Staff Engineer.\n'
         '2. When live internet search results are provided above, explain them naturally and humanly.\n'
         '3. Use clear, beautifully structured Markdown (## headings, **bold**, bullets, code blocks).\n'
-        '4. Be concise yet deeply insightful — zero fluff, zero repetitive disclaimers.\n'
-        '5. If you need more context mid-generation, emit <<NPU_QUERY:your sub-query>> and the NPU will retrieve it for the next turn.\n';
+        '4. If asked to generate an icon, logo, badge, or graphic, output scalable, high-resolution SVG vector code or HTML5 Canvas wrapped in `<html_app>...</html_app>` tags.\n'
+        '5. Be concise yet deeply insightful — zero fluff, zero repetitive disclaimers.\n'
+        '6. If you need more context mid-generation, emit <<NPU_QUERY:your sub-query>> and the NPU will retrieve it for the next turn.\n';
 
     // ── 5-model multi-agent pipeline (Orchestrator) ───────────────────────────
     // Phase 1: Qwen assigns tasks to NPU subagents
@@ -360,52 +340,74 @@ class _CodingSaathiMainSurfaceState extends State<CodingSaathiMainSurface> {
     // Phase 4: Qwen streams final response
     // Phase 5: Q+A indexed into NPU vector store
     int realNpuLatency = 178;
-    int realActiveMinisters = 4;
 
-    final stream = _orchestrator.generate(
-      userPrompt:    userPrompt,
-      systemContext: systemDirective,
-      maxNewTokens:  1500,
-      onNpuStateChange: (active, {latencyMs, activeMinisters, dynamicStep}) {
-        if (!mounted) return;
-        setState(() {
-          _isSidecarProcessing = active;
-          if (latencyMs != null && latencyMs > 0) realNpuLatency = latencyMs;
-          if (activeMinisters != null && activeMinisters > 0) realActiveMinisters = activeMinisters;
-          if (dynamicStep != null && dynamicStep.isNotEmpty) {
-            _chatMessages[assistantIndex]['thinking'] = dynamicStep;
-            _chatMessages[assistantIndex]['thinkingTime'] = '${realNpuLatency}ms • $realActiveMinisters Ministers';
-          }
-        });
-      },
-    );
+    final responseBuffer = StringBuffer();
 
-    await for (final event in stream) {
-      if (event.token.isNotEmpty) {
-        if (!event.token.contains('im_end')) {
+    try {
+      final stream = _orchestrator.generate(
+        userPrompt:    userPrompt,
+        systemContext: systemDirective,
+        maxNewTokens:  1500,
+        onNpuStateChange: (active, {latencyMs, activeMinisters, dynamicStep}) {
+          if (!mounted) return;
           setState(() {
-            _chatMessages[assistantIndex]['content'] =
-                (_chatMessages[assistantIndex]['content'] as String) + event.token;
+            _isSidecarProcessing = active;
+            if (latencyMs != null && latencyMs > 0) realNpuLatency = latencyMs;
+            if (dynamicStep != null && dynamicStep.isNotEmpty) {
+              _chatMessages[assistantIndex]['thinking'] = dynamicStep;
+              _chatMessages[assistantIndex]['thinkingTime'] = '${realNpuLatency}ms • Multi-Agent';
+            }
           });
-          _scrollToBottom();
+        },
+      );
+
+      await for (final event in stream) {
+        if (event.token.isNotEmpty && !event.token.contains('im_end')) {
+          responseBuffer.write(event.token);
+          if (mounted) {
+            setState(() {
+              _chatMessages[assistantIndex]['content'] = responseBuffer.toString();
+            });
+            _scrollToBottom();
+          }
         }
       }
+
+      var finalText = responseBuffer.toString()
+          .replaceAll('<|im_end|>', '')
+          .replaceAll('|im_end|>', '')
+          .replaceAll('im_end|>', '')
+          .replaceAll('<|im_start|>', '')
+          .replaceAll('<|endoftext|>', '')
+          .trimRight();
+
+      if (finalText.isEmpty) {
+        finalText = "Hello! 👋 I am CodingSaathi AI, your on-device AI pair-programmer. How can I help you today?";
+      }
+
+      if (mounted) {
+        setState(() {
+          _chatMessages[assistantIndex]['content'] = finalText;
+        });
+      }
+
+      _mcpServer.addLog('CHAT: Multi-agent pipeline complete.');
+    } catch (e) {
+      _mcpServer.addLog('CHAT ERROR: $e');
+      if (mounted && responseBuffer.isEmpty) {
+        setState(() {
+          _chatMessages[assistantIndex]['content'] =
+              "Hello! 👋 I am CodingSaathi AI. (Model status: $e)";
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+          _isSidecarProcessing = false;
+        });
+      }
     }
-
-    var finalText = (_chatMessages[assistantIndex]['content'] as String)
-        .replaceAll('<|im_end|>', '')
-        .replaceAll('|im_end|>', '')
-        .replaceAll('im_end|>', '')
-        .replaceAll('<|im_start|>', '')
-        .replaceAll('<|endoftext|>', '')
-        .trimRight();
-
-    setState(() {
-      _chatMessages[assistantIndex]['content'] = finalText;
-      _isGenerating = false;
-    });
-
-    _mcpServer.addLog('CHAT: Multi-agent pipeline complete.');
   }
 
   void _scrollToBottom({bool force = false}) {

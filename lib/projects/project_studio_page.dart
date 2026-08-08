@@ -64,48 +64,65 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
         '$editingPrompt';
 
     final assistantIndex = _messages.length - 1;
-    final stream = widget.orchestrator.generate(
-      userPrompt:    text,
-      systemContext: systemDirective,
-      maxNewTokens:  3500,
-    );
+    try {
+      final stream = widget.orchestrator.generate(
+        userPrompt:    text,
+        systemContext: systemDirective,
+        maxNewTokens:  3500,
+      );
 
-    await for (final event in stream) {
-      if (event.token.isNotEmpty && !event.token.contains('im_end')) {
+      await for (final event in stream) {
+        if (event.token.isNotEmpty && !event.token.contains('im_end')) {
+          setState(() {
+            _messages[assistantIndex]['content'] =
+                (_messages[assistantIndex]['content'] as String) + event.token;
+          });
+          _scrollToBottom();
+        }
+      }
+
+      var finalText = (_messages[assistantIndex]['content'] as String)
+          .replaceAll('<|im_end|>', '')
+          .replaceAll('|im_end|>', '')
+          .replaceAll('im_end|>', '')
+          .replaceAll('<|im_start|>', '')
+          .replaceAll('<|endoftext|>', '')
+          .trimRight();
+
+      if (finalText.isEmpty) {
+        finalText = '⚠️ Model is initializing or produced an empty response. Please tap send again.';
+      }
+
+      String updatedHtml = MiniAppCodePatcher.extractAppCode(finalText);
+      if (updatedHtml.isEmpty || updatedHtml == finalText) {
+        if (finalText.contains('<<<<<<< SEARCH') || finalText.contains('<code_diff>')) {
+          updatedHtml = MiniAppCodePatcher.applyDiffs(widget.project.htmlContent, finalText);
+        }
+      }
+
+      if (updatedHtml.isNotEmpty && updatedHtml != widget.project.htmlContent) {
+        widget.project.htmlContent = updatedHtml;
+        await widget.projectManager.updateProjectHtml(widget.project.id, updatedHtml);
+      }
+
+      setState(() {
+        _messages[assistantIndex]['content'] = finalText;
+      });
+
+      widget.projectManager.addChatMessageToProject(widget.project.id, 'assistant', finalText);
+    } catch (e) {
+      final errorMsg = '❌ Error during generation: $e. Please verify Qwen model is initialized.';
+      setState(() {
+        _messages[assistantIndex]['content'] = errorMsg;
+      });
+      widget.projectManager.addChatMessageToProject(widget.project.id, 'assistant', errorMsg);
+    } finally {
+      if (mounted) {
         setState(() {
-          _messages[assistantIndex]['content'] =
-              (_messages[assistantIndex]['content'] as String) + event.token;
+          _isGenerating = false;
         });
-        _scrollToBottom();
       }
     }
-
-    var finalText = (_messages[assistantIndex]['content'] as String)
-        .replaceAll('<|im_end|>', '')
-        .replaceAll('|im_end|>', '')
-        .replaceAll('im_end|>', '')
-        .replaceAll('<|im_start|>', '')
-        .replaceAll('<|endoftext|>', '')
-        .trimRight();
-
-    String updatedHtml = MiniAppCodePatcher.extractAppCode(finalText);
-    if (updatedHtml.isEmpty || updatedHtml == finalText) {
-      if (finalText.contains('<<<<<<< SEARCH') || finalText.contains('<code_diff>')) {
-        updatedHtml = MiniAppCodePatcher.applyDiffs(widget.project.htmlContent, finalText);
-      }
-    }
-
-    if (updatedHtml.isNotEmpty && updatedHtml != widget.project.htmlContent) {
-      widget.project.htmlContent = updatedHtml;
-      await widget.projectManager.updateProjectHtml(widget.project.id, updatedHtml);
-    }
-
-    setState(() {
-      _messages[assistantIndex]['content'] = finalText;
-      _isGenerating = false;
-    });
-
-    widget.projectManager.addChatMessageToProject(widget.project.id, 'assistant', finalText);
   }
 
   void _scrollToBottom() {

@@ -1,17 +1,17 @@
-# ⚡ CodingSaathi AI — On-Device Agentic Pair Programmer
+# ⚡ CodingSaathi AI — On-Device Agentic Pair Programmer & 8-Agent Multi-Agent Council
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?logo=flutter)](https://flutter.dev)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.18.0-00599C?logo=onnx)](https://onnxruntime.ai)
 [![Hardware Acceleration](https://img.shields.io/badge/Hardware-Android_OpenCL_GPU-FF6F00?logo=android)](https://developer.android.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**CodingSaathi AI** is an on-device AI pair programmer, mini-app execution environment, and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (SLMs) like Qwen2.5-Coder-1.5B with a dedicated C++ ONNX Runtime NPU Sidecar Engine, a Diff-Based HTML Mini-App Code Patcher, and hardware-integrated HTML5 mini-apps.
+**CodingSaathi AI** is an on-device agentic pair programmer, mini-app execution environment, and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (Qwen2.5-Coder-1.5B) with a dedicated **8-Agent Multi-Agent Council (C++ ONNX Runtime)**, a Cognitive Memory System, and a split-screen Project Studio Canvas.
 
 ---
 
-## 🏛️ System Architecture
+## 🏛️ System Architecture & Central Orchestrator
 
-```
+```text
                                     ┌────────────────────────────────────────────────────────┐
                                     │                  CODINGSAATHI AI SYSTEM                │
                                     └───────────────────────────┬────────────────────────────┘
@@ -22,32 +22,31 @@
     ┌─────────────────────────────┐                                                           ┌─────────────────────────────┐
     │    PRIMARY ENGINE (GPU)     │                                                           │   SIDECAR ENGINE (NPU/CPU)  │
     ├─────────────────────────────┤                                                           ├─────────────────────────────┤
-    │  • llama.cpp + OpenCL       │                                                           │  • ONNX Runtime C++ SDK     │
-    │  • Qwen2.5-Coder-1.5B (GGUF)│                                                           │  • bge-small-en-v1.5 Embeds │
-    │  • 100% VRAM Layer Offload  │                                                           │  • CodeBERTa Language ID    │
-    │  • Zero CPU Load            │                                                           │  • Context Vector Search    │
+    │  • llama.cpp + OpenCL       │                                                           │  • 8 ONNX Multi-Agent Council│
+    │  • Qwen2.5-Coder-1.5B (GGUF)│                                                           │  • Intent, Dense Embeds,    │
+    │  • 100% VRAM Layer Offload  │                                                           │    Re-ranker, LangID, SIMD  │
+    │  • Zero CPU Load            │                                                           │  • Sub-ms Dot-Product Search │
     └──────────────┬──────────────┘                                                           └──────────────┬──────────────┘
-                   │                                                                                         │
                    │                                                                                         │
                    └────────────────────────────────────────────┬────────────────────────────────────────────┘
                                                                 │
                                                                 ▼
                                             ┌───────────────────────────────────────┐
-                                            │      FLUTTER DART FFI BRIDGE          │
+                                            │   CENTRAL PIPELINE ORCHESTRATOR       │
                                             ├───────────────────────────────────────┤
-                                            │  • Asynchronous Isolates             │
-                                            │  • Zero Frame-Drop UI Threading      │
+                                            │  • Single Shared Isolate Coordinator  │
+                                            │  • Dynamic Mid-Stream <<NPU_QUERY>>   │
                                             └───────────────────┬───────────────────┘
                                                                 │
                    ┌────────────────────────────────────────────┼────────────────────────────────────────────┐
                    │                                            │                                            │
                    ▼                                            ▼                                            ▼
     ┌─────────────────────────────┐              ┌─────────────────────────────┐              ┌─────────────────────────────┐
-    │     CHAT UI & SLM ENGINE    │              │     HTML5 MINI APPS HUB     │              │    PROJECT STUDIO CANVAS    │
+    │          CHAT TAB           │              │    PROJECT STUDIO CANVAS    │              │       MCP SERVER API        │
     ├─────────────────────────────┤              ├─────────────────────────────┤              ├─────────────────────────────┤
-    │  • Dynamic Token Scaling    │              │  • Secure WebView Sandbox   │              │  • Split-Screen Editor      │
-    │  • Diff-Based Editing Engine│              │  • FlutterBridge & CSP Meta │              │  • Live Canvas Preview      │
-    │  • XML Tag Extraction       │              │  • Hardware JS Bridge       │              │  • On-Device Pair-Programmer│
+    │  • Interactive AI Chat      │              │  • Split-Screen Live Preview│              │  • JSON-RPC 2.0 & OpenAI API│
+    │  • Glassmorphic Toast HUD   │              │  • Single-File HTML Sandbox │              │  • IDE Integration (Continue)│
+    │  • Intelligent Web Search   │              │  • Real-Time Code Editing   │              │  • Context Vector Endpoints │
     └─────────────────────────────┘              └─────────────────────────────┘              └─────────────────────────────┘
 ```
 
@@ -55,59 +54,44 @@
 
 ## ✨ Key Features
 
-### 1. 🧠 Heterogeneous On-Device AI Acceleration
+### 1. 🤖 8-Agent Multi-Agent Council (C++ & ONNX Acceleration)
 
-| Pipeline Component | Assigned Model | Hardware Engine | Why This Model & Engine? |
+| Subsystem | Model / Engine | Hardware Engine | Role & Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Intent Classifier** | `all-MiniLM-L6-v2` (~23 MB) | **NPU** | Sub-10ms execution, ultra-low power idle state. |
-| **Code Embeddings** | `bge-small-en-v1.5` (~133 MB) | **NPU** | **4.5x more efficient than EmbeddingGemma**; sub-ms dot-product throughput. |
-| **RAG Re-ranker** | `bge-reranker-base` (~110 MB) | **NPU** | High-precision text pair classification & context filtering before SLM. |
-| **Code Generation** | `qwen2.5-coder-1.5b` (~1.1 GB) | **GPU** | Dedicated memory bandwidth for high-speed token generation. |
+| **Agent 1: Intent Classifier** | `all-MiniLM-L6-v2` (~23 MB) | **NPU** | Classifies query intent (`bug_fix`, `code_gen`, `explanation`, `web_search`). |
+| **Agent 2: Dense Vectorizer** | `bge-small-v1.5` (~133 MB) | **NPU** | Converts prompts & code blocks into 384-dimensional dense vectors. |
+| **Agent 3: Cross-Encoder Re-ranker** | `bge-reranker-base` (~110 MB) | **NPU** | Re-ranks retrieved vector snippets to select the top 5 most relevant docs. |
+| **Agent 4: Code Language ID** | `codeberta` (~90 MB) | **NPU** | Identifies source syntax (Dart, HTML, Python, JS). |
+| **Agent 5: VRAM Allocator** | Native Allocator | **GPU/RAM** | Monitors active KV-cache GPU VRAM boundaries. |
+| **Agent 6: Episodic Vault Manager** | SQLite Engine | **Storage** | Persists session turn memory across application restarts. |
+| **Agent 7: SIMD Vector Engine** | ARM Neon / AVX2 | **C++ SIMD** | Hardware-accelerated dot-product search across project vector indices. |
+| **Agent 8: Prompt Synthesizer** | Cognitive Engine | **CPU** | Formats NPU pre-processed context payloads into structured prompt blocks. |
+| **Primary Code SLM** | `qwen2.5-coder-1.5b` (~1.1 GB) | **Adreno GPU** | **100% OpenCL GPU Layer Offload** for high-speed token generation. |
 
-- **Primary GPU Engine (`llama.cpp`)**: Executes `Qwen2.5-Coder-1.5B` via OpenCL on Android Mobile GPUs with 100% layer offload.
-- **Auxiliary NPU Engine (`sidecar_engine.cpp`)**: C++ ONNX Runtime engine executing `all-MiniLM-L6-v2`, `bge-small-en-v1.5`, and `bge-reranker-base` without consuming GPU VRAM or main thread cycles.
+### 2. ⚡ Unified Central Orchestration (`PipelineOrchestrator`)
+A single shared orchestrator connects the **Chat Tab**, **Project Studio Canvas**, and **MCP Server**:
+- **Shared Memory & Vector RAG**: Indexed code snippets and conversation history are immediately available across all three entry points.
+- **Dynamic Mid-Generation Re-entry**: As Qwen streams tokens on the GPU, if it emits `<<NPU_QUERY:...>>`, the orchestrator pauses streaming (`~178ms`), dispatches the 8 NPU agents in parallel, injects new context into the active KV-cache, and resumes token streaming!
 
-### 2. ⚡ HTML Mini-App Pipeline & Diff Editing Engine (`MiniAppCodePatcher`)
-Specially engineered for Small Language Models (~1.5B parameters) to prevent token hallucination, full-file regeneration fatigue, and JSON escaping errors:
-- 🏷️ **XML Tag Extraction (`MiniAppPrompts`)**: Enforces code generation inside `<html_app>...</html_app>` tags for new apps and `<code_diff>...</code_diff>` for edits, completely ignoring conversational raw text outside tags.
-- ✂️ **Search / Replace Diff Editing Strategy**: Applies exact `<<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE` diff blocks directly to stored HTML files in local storage without requiring full file rewrites.
-- 🛡️ **HTML Auto-Repair**: Automatically detects and repairs unclosed `</script>`, `</body>`, or `</html>` tags to prevent execution failures in WebViews.
+### 3. 🌐 Intelligent Web Search Retrieval (NLP Webcrawler)
+- Automatically detects informational & web-directed queries.
+- Fetches real-time web context via DuckDuckGo HTML & Wikipedia APIs.
+- Pre-processes HTML snippets via NPU vectorizers so Qwen generates grounded, factual answers.
 
-### 3. 📲 Secure WebView Sandbox & Native Host Bridge (`window.FlutterBridge` & `window.Essential`)
-Full Android WebView sandbox container with automatic Content Security Policy (CSP) meta tag injection and structured native bridge communication:
-- 🌉 **Host Bridge Wrapper**: Dedicated `FlutterChannel` receiving JSON messages (`{ method, payload }`) with `window.FlutterBridge.callNative(method, payload)`.
-- 📍 **GPS & Geofencing**: `Essential.getLocation()`, `Essential.watchLocation()`, `Essential.setGeoAlarm(lat, lng, r, title, body)`
-- 🔔 **Notifications**: Static alerts + Ongoing Live status bar notifications (`Essential.startLiveNotification`, `updateLiveNotification`)
-- 🌀 **Hardware Sensors**: Gyroscope, Accelerometer, Magnetometer motion streams (`Essential.watchSensor`)
-- 💡 **Camera Flashlight**: Direct hardware torch toggle (`Essential.setFlashlight`)
-- 📶 **Connectivity**: Live WiFi and Cellular network telemetry (`Essential.getNetworkStatus`)
-- ⚙️ **Background Mode**: Promotes to an Android Foreground Service so mini apps continue tracking GPS and firing alerts when minimized.
+### 4. 🎨 Project Studio & WebView Sandbox (`window.FlutterBridge`)
+- **Split-Screen Canvas**: Interactive code editor on top with a live WebView preview below.
+- **`<html_app>` Code Patcher**: Enforces clean single-file HTML generation wrapped in `<html_app>` tags, preventing LLM code diff hallucination.
+- **Native Host APIs**: Exposes device sensors, GPS geofencing, torch/flashlight control, live status notifications, and network telemetry via `window.FlutterBridge`.
 
-### 4. 🎨 Split-Screen Project Studio & Pair Programming Canvas
-On-device pair-programming interface for interactive mini-app development:
-- **Live Canvas Preview**: Real-time rendering of mini-app HTML/CSS/JS output on light canvas (`#FFFFFF`).
-- **Interactive Pair-Programmer**: On-device SLM logic engine generating exact `<code_diff>` patches in response to developer requests.
-- **Project Workspaces**: Persistent index HTML and config storage per project directory.
-
-### 5. 🌐 Production MCP (Model Context Protocol) Server
-On-device JSON-RPC 2.0 HTTP server listening on your device's local IP address (`http://<device-ip>:8080`):
-- `Device.getSystemInfo`: Queries hardware layer metrics.
-- `QuickJS.eval`: Executes sandboxed JavaScript with watchdog limits.
-- `VectorAdapter.search`: Context vector similarity search pipeline.
-- `MiniApp.createWidget`: Generates dynamic widget specifications.
+### 5. 🔌 Production MCP (Model Context Protocol) Server
+- Listens locally on `http://0.0.0.0:8080`.
+- Implements OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) and JSON-RPC (`/rpc`, `/sse`).
+- Connects directly to desktop IDEs like **Continue.dev**, **Cursor**, or **VS Code**.
 
 ---
 
-## 🔌 Continue.dev & Desktop IDE Integration
+## 🔌 Continue.dev IDE Configuration (`~/.continue/config.json`)
 
-Connect **Continue.dev**, **Cline**, or **Roo Code** in VS Code directly to your Android device running CodingSaathi AI over USB ADB or local Wi-Fi:
-
-### Step 1: Forward Port via ADB
-```bash
-adb forward tcp:8080 tcp:8080
-```
-
-### Step 2: Configure Continue.dev (`~/.continue/config.json`)
 ```json
 {
   "models": [
@@ -132,70 +116,42 @@ adb forward tcp:8080 tcp:8080
 }
 ```
 
----
-
-## 🛠️ Project Structure
-
-```text
-lib/
-├── ffi/                         # FFI Bindings for llama.cpp & ONNX Sidecar Isolate
-├── mcp/                         # Model Context Protocol JSON-RPC Server
-├── mini_apps/
-│   ├── mini_app_code_patcher.dart # Diff-based Search/Replace & XML Tag Extractor
-│   ├── mini_app_prompts.dart      # Prompt Contracts (<html_app> & <code_diff>)
-│   ├── web_view_sandbox.dart      # Secure WebView Sandbox, CSP & FlutterBridge Shell
-│   ├── mini_app_webview.dart      # Full-Screen WebView Widget & JS Channel Handler
-│   ├── mini_app_manager.dart      # Mini App Registry & Seed Templates
-│   └── mini_app_service.dart      # Foreground Background Service for Mini Apps
-└── projects/
-    ├── project_studio_page.dart   # Split-Screen Pair-Programming Canvas
-    └── project_manager.dart       # Local Project Storage & Index HTML Management
+Forward port via ADB:
+```bash
+adb forward tcp:8080 tcp:8080
 ```
 
 ---
 
-## 🛠️ Model Directory Structure
+## 🛠️ Model Storage Layout
 
-Save GGUF and ONNX models on device storage at:
-`/sdcard/Android/data/com.example.essential/files/`
+Store model files on your Android device at:
+`/sdcard/Download/qwen2.5-coder-1.5b.gguf` or `/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/`
 
 ```text
-com.example.essential/files/
-├── qwen2.5-coder-1.5b.gguf          # Primary Code Generation SLM (OpenCL GPU)
+files/
+├── qwen2.5-coder-1.5b.gguf          # Code Generation SLM (Adreno OpenCL GPU)
 └── models/
-    ├── all_minilm_l6_v2.onnx        # Intent Classifier (~23 MB, NPU)
-    ├── bge_small_v1.5.onnx          # Code Embeddings & Vector Search (~133 MB, NPU)
-    ├── bge_reranker_base.onnx       # RAG Re-ranker (~110 MB, NPU)
-    └── codeberta.onnx               # Code Language Classifier (~90 MB, NPU)
+    ├── all_minilm_l6_v2.onnx        # Intent Classifier (NPU)
+    ├── bge_small_v1.5.onnx          # Dense Vectorizer (NPU)
+    ├── bge_reranker_base.onnx       # Cross-Encoder Re-ranker (NPU)
+    └── codeberta.onnx               # Code Language Classifier (NPU)
 ```
 
 ---
 
 ## 🚀 Building & Testing
 
-### Prerequisites
-- Flutter SDK `^3.29.0`
-- Android NDK `28.2.13676358` & CMake `3.22.1`
-- Android device running Android 10+ (API 29+)
-
-### Run Unit & Integration Tests
 ```bash
-flutter test test/mini_app_code_patcher_test.dart
-```
-
-### Static Analysis
-```bash
+# Run Static Analysis
 flutter analyze
-```
 
-### Build APK
-```bash
+# Run All Unit & Integration Tests (14/14 Passed)
+flutter test
+
 # Build Debug APK
 flutter build apk --debug
 ```
-
-The output binary will be located at:
-`build/app/outputs/flutter-apk/app-debug.apk`
 
 ---
 

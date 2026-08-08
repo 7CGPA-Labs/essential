@@ -20,7 +20,7 @@ class FakeLlamaIsolateWrapper implements LlamaIsolateWrapper {
   Future<void> dispose() async {}
 
   @override
-  Future<void> init(String modelPath, int backend, int threads) async {}
+  Future<bool> init(String modelPath, int backend, int threads) async => true;
 
   bool get isInitialized => true;
 }
