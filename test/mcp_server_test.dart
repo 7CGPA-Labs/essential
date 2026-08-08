@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:codingsaathi/mcp/mcp_server.dart';
 import 'package:codingsaathi/ffi/llama_isolate.dart';
+import 'package:codingsaathi/ffi/sidecar_isolate.dart';
+import 'package:codingsaathi/ffi/sidecar_bindings.dart';
+import 'package:codingsaathi/orchestration/pipeline_orchestrator.dart';
 import 'package:http/http.dart' as http;
 
 class FakeLlamaIsolateWrapper implements LlamaIsolateWrapper {
@@ -21,14 +25,34 @@ class FakeLlamaIsolateWrapper implements LlamaIsolateWrapper {
   bool get isInitialized => true;
 }
 
+class FakeSidecarIsolateService implements SidecarIsolateService {
+  @override
+  Future<SidecarResult?> process({List<int>? imageBytes, required String userQuery}) async {
+    return SidecarResult(
+      extractedCode: '',
+      detectedLanguage: 'dart',
+      retrievedContext: '',
+      fullyFormattedPrompt: userQuery,
+    );
+  }
+
+  @override
+  void dispose() {}
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = null;
   group('MCP Server & Continue.dev Endpoint Integration Tests', () {
     late McpServer server;
     late int testPort;
 
     setUp(() async {
       testPort = 8089;
-      server = McpServer(FakeLlamaIsolateWrapper());
+      final llama = FakeLlamaIsolateWrapper();
+      final npu = FakeSidecarIsolateService();
+      final orchestrator = PipelineOrchestrator(llm: llama, npu: npu);
+      server = McpServer(llama, npu, orchestrator);
       await server.start(port: testPort);
     });
 

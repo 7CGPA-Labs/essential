@@ -8,10 +8,14 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
 import '../ffi/llama_isolate.dart';
 import '../ffi/llama_bindings.dart';
+import '../ffi/sidecar_isolate.dart';
+import '../orchestration/pipeline_orchestrator.dart';
 import 'package:ffi/ffi.dart';
 
 class McpServer {
-  final LlamaIsolateWrapper _llamaIsolate;
+  final LlamaIsolateWrapper llamaIsolate;
+  final SidecarIsolateService sidecarIsolate;
+  final PipelineOrchestrator _orchestrator;
   HttpServer? _server;
   final StreamController<String> _logController = StreamController<String>.broadcast();
 
@@ -22,7 +26,7 @@ class McpServer {
     _logController.add('[$timestamp] $message');
   }
 
-  McpServer(this._llamaIsolate);
+  McpServer(this.llamaIsolate, this.sidecarIsolate, this._orchestrator);
 
   static Future<String> getLocalIpAddress() async {
     try {
@@ -209,23 +213,34 @@ class McpServer {
       }
     }
 
-    final formattedPrompt =
-        '<|im_start|>system\nYou are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Mobile GPU.<|im_end|>\n'
-        '<|im_start|>user\n$userMessage<|im_end|>\n'
-        '<|im_start|>assistant\n';
+    // ── 5-model multi-agent pipeline ─────────────────────────────────────────
+    // Phase 1: Qwen generates NPU task-assignment JSON
+    // Phase 2: 4 NPU ONNX models run concurrently (intent+embed+lang parallel,
+    //          then rerank); GPU reformulates query on low NPU confidence
+    // Phase 3: NPU report injected into Qwen's context
+    // Phase 4: Qwen streams final response
+    // Phase 5: Q+A indexed into NPU vector store (learning loop)
+    addLog('PIPELINE: 5-model multi-agent pipeline starting for "${userMessage.substring(0, userMessage.length.clamp(0, 60))}"');
+
+    const systemPrompt =
+        'You are CodingSaathi AI, a warm Senior Staff Software Engineer pair-programming on-device on Mobile GPU.\n'
+        'NPU Pipeline: all-MiniLM-L6-v2 (Intent) → bge-small-v1.5 (Embed) → bge-reranker-base (Rerank) → Qwen2.5-Coder (GPU).\n'
+        'If you need additional context mid-generation, emit <<NPU_QUERY:your sub-query>>.';
 
     if (!stream) {
       final completer = Completer<String>();
       final sb = StringBuffer();
 
-      _llamaIsolate.generate(formattedPrompt).listen((event) {
+      _orchestrator.generate(
+        userPrompt:    userMessage,
+        systemContext: systemPrompt,
+      ).listen((event) {
         sb.write(event.token);
-        if (event.isFinish) {
-          completer.complete(sb.toString());
-        }
+        if (event.isFinish) completer.complete(sb.toString());
       });
 
       final result = await completer.future;
+      addLog('PIPELINE: Non-stream generation complete.');
       return Response.ok(
         jsonEncode({
           'id': 'chatcmpl-ondevice',
@@ -245,10 +260,14 @@ class McpServer {
       );
     }
 
+    // SSE streaming path
     final controller = StreamController<List<int>>();
     final createdTimestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
-    _llamaIsolate.generate(formattedPrompt).listen((event) {
+    _orchestrator.generate(
+      userPrompt:    userMessage,
+      systemContext: systemPrompt,
+    ).listen((event) {
       final sseChunk = {
         'id': 'chatcmpl-ondevice',
         'object': 'chat.completion.chunk',
@@ -262,11 +281,11 @@ class McpServer {
           }
         ]
       };
-
       controller.add(utf8.encode('data: ${jsonEncode(sseChunk)}\n\n'));
       if (event.isFinish) {
         controller.add(utf8.encode('data: [DONE]\n\n'));
         controller.close();
+        addLog('PIPELINE: SSE stream complete.');
       }
     }, onError: (e) {
       controller.add(utf8.encode('data: {"error": "${e.toString()}"}\n\n'));

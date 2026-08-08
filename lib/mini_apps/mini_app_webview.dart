@@ -557,7 +557,12 @@ class MiniAppCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                // Red Trash Delete Button
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                  tooltip: 'Delete Mini App',
+                  onPressed: () => manager.removeMiniApp(app.id),
+                ),
                 // Enable toggle
                 Transform.scale(
                   scale: 0.85,
@@ -571,59 +576,58 @@ class MiniAppCard extends StatelessWidget {
               ],
             ),
           ),
-          if (app.isEnabled)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(
-                children: [
-                  if (app.backgroundEnabled)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Colors.greenAccent.withValues(alpha: 0.4)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle,
-                              size: 7, color: Colors.greenAccent),
-                          SizedBox(width: 4),
-                          Text('Background',
-                              style: TextStyle(
-                                  fontSize: 10, color: Colors.greenAccent)),
-                        ],
-                      ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                if (app.backgroundEnabled)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.greenAccent.withValues(alpha: 0.4)),
                     ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () => manager.removeMiniApp(app.id),
-                    icon: const Icon(Icons.delete_outline,
-                        size: 16, color: Colors.redAccent),
-                    label: const Text('Delete',
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.redAccent)),
-                  ),
-                  const SizedBox(width: 4),
-                  ElevatedButton.icon(
-                    onPressed: onLaunch,
-                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                    label: const Text('Open', style: TextStyle(fontSize: 13)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C4DFF),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle,
+                            size: 7, color: Colors.greenAccent),
+                        SizedBox(width: 4),
+                        Text('Background',
+                            style: TextStyle(
+                                fontSize: 10, color: Colors.greenAccent)),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => manager.removeMiniApp(app.id),
+                  icon: const Icon(Icons.delete_outline,
+                      size: 16, color: Colors.redAccent),
+                  label: const Text('Delete',
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.redAccent)),
+                ),
+                const SizedBox(width: 4),
+                ElevatedButton.icon(
+                  onPressed: app.isEnabled ? onLaunch : null,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Open', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C4DFF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                  ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );

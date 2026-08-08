@@ -257,6 +257,26 @@ class ProjectManager extends ValueNotifier<List<ProjectItem>> {
     notifyListeners();
   }
 
+  Future<void> deleteProject(String id) async {
+    final index = value.indexWhere((p) => p.id == id);
+    if (index == -1) return;
+
+    final p = value[index];
+    try {
+      final dir = Directory(p.directoryPath);
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('Error deleting project directory: $e');
+    }
+
+    final newList = List<ProjectItem>.from(value);
+    newList.removeAt(index);
+    value = newList;
+    notifyListeners();
+  }
+
   String _extractTitle(String html, String fallback) {
     final match = RegExp(r'<title>(.*?)</title>', caseSensitive: false).firstMatch(html);
     if (match != null && match.group(1)!.trim().isNotEmpty) {

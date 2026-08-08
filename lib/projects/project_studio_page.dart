@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import '../ffi/llama_isolate.dart';
-import '../ffi/sidecar_isolate.dart';
 import '../mini_apps/mini_app_webview.dart';
 import '../mini_apps/mini_app_prompts.dart';
 import '../mini_apps/mini_app_code_patcher.dart';
+import '../orchestration/pipeline_orchestrator.dart';
 import 'project_manager.dart';
 
 class ProjectStudioPage extends StatefulWidget {
   final ProjectItem project;
   final ProjectManager projectManager;
-  final LlamaIsolateWrapper llamaIsolate;
-  final SidecarIsolateService sidecarIsolate;
+  final PipelineOrchestrator orchestrator;
   final String gpuInfo;
 
   const ProjectStudioPage({
     super.key,
     required this.project,
     required this.projectManager,
-    required this.llamaIsolate,
-    required this.sidecarIsolate,
+    required this.orchestrator,
     required this.gpuInfo,
   });
 
@@ -61,14 +58,17 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
     );
 
     final systemDirective =
-        'You are CodingSaathi AI, an expert HTML mini app pair-programmer running 100% on-device on ${widget.gpuInfo}.\n\n'
+        'You are CodingSaathi AI, an expert HTML mini app pair-programmer running 100% on-device on ${widget.gpuInfo}.\n'
+        'NPU Pipeline: all-MiniLM-L6-v2 (Intent) → bge-small-v1.5 (Embeddings) → bge-reranker-base (Reranker) → Qwen2.5-Coder (GPU).\n'
+        'If you need additional codebase context mid-generation, emit <<NPU_QUERY:your sub-query>>.\n\n'
         '$editingPrompt';
 
-    final formattedPrompt =
-        '<|im_start|>system\n$systemDirective<|im_end|>\n<|im_start|>user\n$text<|im_end|>\n<|im_start|>assistant\n';
-
     final assistantIndex = _messages.length - 1;
-    final stream = widget.llamaIsolate.generate(formattedPrompt, maxNewTokens: 3500);
+    final stream = widget.orchestrator.generate(
+      userPrompt:    text,
+      systemContext: systemDirective,
+      maxNewTokens:  3500,
+    );
 
     await for (final event in stream) {
       if (event.token.isNotEmpty && !event.token.contains('im_end')) {
@@ -88,13 +88,11 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
         .replaceAll('<|endoftext|>', '')
         .trimRight();
 
-    String updatedHtml;
-    if (finalText.contains('<<<<<<< SEARCH') || finalText.contains('<code_diff>')) {
-      // Apply Search / Replace diff patch to stored HTML string
-      updatedHtml = MiniAppCodePatcher.applyDiffs(widget.project.htmlContent, finalText);
-    } else {
-      // Fallback: extract full HTML from <html_app> tags or code blocks
-      updatedHtml = MiniAppCodePatcher.extractAppCode(finalText);
+    String updatedHtml = MiniAppCodePatcher.extractAppCode(finalText);
+    if (updatedHtml.isEmpty || updatedHtml == finalText) {
+      if (finalText.contains('<<<<<<< SEARCH') || finalText.contains('<code_diff>')) {
+        updatedHtml = MiniAppCodePatcher.applyDiffs(widget.project.htmlContent, finalText);
+      }
     }
 
     if (updatedHtml.isNotEmpty && updatedHtml != widget.project.htmlContent) {
@@ -122,6 +120,21 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
     });
   }
 
+  String _cleanDisplayContent(String content) {
+    String clean = content
+        .replaceAll(RegExp(r'<html_app>[\s\S]*?</html_app>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<code_diff>[\s\S]*?</code_diff>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<html_app>[\s\S]*$', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<code_diff>[\s\S]*$', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<<<<<<<\s*SEARCH[\s\S]*?>>>>>>>\s*REPLACE', caseSensitive: false), '')
+        .trim();
+
+    if (clean.isEmpty) {
+      return '✨ Project code updated and applied to live preview!';
+    }
+    return clean;
+  }
+
   @override
   void dispose() {
     _inputController.dispose();
@@ -143,29 +156,34 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.project.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const Text('Split-Screen Project Studio', style: TextStyle(fontSize: 10, color: Color(0xFF8AB4F8))),
+            Text(widget.project.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text('Project Studio', style: TextStyle(fontSize: 10, color: Color(0xFFD0BCFF))),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            tooltip: 'Reload WebView Preview',
+            onPressed: () => setState(() {}),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Top Half (50% Height): Live HTML WebView Render with White Background
           Expanded(
             flex: 5,
             child: Container(
               color: Colors.white,
               child: MiniAppWebViewWidget(
+                key: ValueKey('${widget.project.id}_${widget.project.htmlContent.hashCode}'),
                 htmlContent: widget.project.htmlContent,
-                backgroundColor: Colors.white,
               ),
             ),
           ),
           Container(
             height: 2,
-            color: const Color(0xFF7C4DFF).withValues(alpha: 0.5),
+            color: const Color(0xFF7C4DFF).withValues(alpha: 0.3),
           ),
-          // Bottom Half (50% Height): Dedicated Project Chat Window
           Expanded(
             flex: 5,
             child: Column(
@@ -173,12 +191,12 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
                     itemCount: _messages.length,
                     itemBuilder: (context, idx) {
-                      final m = _messages[idx];
-                      final isUser = m['role'] == 'user';
-                      final content = m['content'] as String;
+                      final msg = _messages[idx];
+                      final isUser = msg['role'] == 'user';
+                      final rawContent = msg['content'] as String;
 
                       return Align(
                         alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -191,9 +209,11 @@ class _ProjectStudioPageState extends State<ProjectStudioPage> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: isUser
-                              ? SelectableText(content, style: const TextStyle(fontSize: 12, color: Colors.white))
+                              ? SelectableText(rawContent, style: const TextStyle(fontSize: 12, color: Colors.white))
                               : MarkdownBody(
-                                  data: content.isEmpty && _isGenerating ? 'Refining project code...' : content,
+                                  data: rawContent.isEmpty && _isGenerating
+                                      ? 'Refining project code...'
+                                      : _cleanDisplayContent(rawContent),
                                   styleSheet: MarkdownStyleSheet(
                                     p: const TextStyle(fontSize: 12, height: 1.4, color: Colors.white),
                                     h1: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD0BCFF)),

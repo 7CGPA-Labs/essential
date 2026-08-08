@@ -141,11 +141,12 @@ int64_t essential_start_generation(int64_t context_ptr, const char* prompt, cons
         }
     }
 
-    // Software Engineer Sampler Config: repetition penalty = 1.1, top_p = 0.95, low temp = 0.2 (precise code logic)
+    // Software Engineer Sampler Config: repetition penalty = 1.1, top_k = 40, top_p = 0.95, temp = 0.75f (dynamic code & creative variations)
     int n_vocab = llama_vocab_n_tokens(vocab);
     llama_sampler_chain_add(sampler, llama_sampler_init_penalties(n_vocab, 16, 1.10f, 0.0f, 0.0f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
     llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.95f, 1));
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.20f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.75f));
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     GenerationState* gs = (GenerationState*)malloc(sizeof(GenerationState));

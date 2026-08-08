@@ -15,11 +15,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildFeatures {
+        // Required for CMake to consume ONNX Runtime headers and .so from the AAR
+        prefab = true
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "dev.seven_cgpalabs.codingsaathi"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -66,4 +68,8 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // ONNX Runtime Android — provides libonnxruntime.so (arm64) and C++ headers
+    // via the prefab mechanism. CMake links against onnxruntime::onnxruntime.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 }

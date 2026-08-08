@@ -12,34 +12,34 @@ typedef struct SidecarResult {
     const char* detected_language;
     const char* retrieved_context;
     const char* fully_formatted_prompt;
+    int32_t latency_ms;
+    int32_t active_ministers;
 } SidecarResult;
 
 /**
- * Initializes the ONNX Runtime Sidecar Engine & Vector Store.
- * @param lang_path Path to CodeBERTa classifier (.onnx) or empty string
- * @param embed_path Path to bge-small-en-v1.5 (.onnx) or empty string
- * @param db_path Path to local vector database / storage
- * @return Opaque pointer handle to SidecarPipelineCoordinator
+ * Initializes the ONNX Runtime Sidecar Pipeline with all 4 NPU models.
  */
-void* sidecar_init(const char* lang_path, const char* embed_path, const char* db_path);
+void* sidecar_init(const char* intent_path,
+                   const char* embed_path,
+                   const char* reranker_path,
+                   const char* lang_path,
+                   const char* db_path);
 
 /**
- * Processes image input, query, and context vector search concurrently.
- * @param handle Opaque handle from sidecar_init
- * @param img_bytes Pointer to raw image buffer (JPEG/PNG/NV21)
- * @param img_len Length of image buffer in bytes
- * @param user_query User prompt query string
- * @return Allocated SidecarResult pointer (must be freed via sidecar_free_result)
+ * Runs the full NPU pipeline: intent → embed → rerank → lang-detect.
  */
-SidecarResult* sidecar_process(void* handle, const uint8_t* img_bytes, int32_t img_len, const char* user_query);
+SidecarResult* sidecar_process(void* handle,
+                               const uint8_t* img_bytes,
+                               int32_t img_len,
+                               const char* user_query);
 
 /**
- * Frees memory allocated for a SidecarResult struct.
+ * Frees a SidecarResult struct returned by sidecar_process.
  */
 void sidecar_free_result(SidecarResult* result);
 
 /**
- * Destroys the Sidecar Engine instance and releases ONNX sessions.
+ * Destroys the engine instance and releases all ONNX sessions + memory.
  */
 void sidecar_destroy(void* handle);
 

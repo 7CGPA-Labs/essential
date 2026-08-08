@@ -2,25 +2,37 @@ import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
 
-// ── Native Struct Mapping ──────────────────────────────────────────────────
+// ── Native Struct Mapping ──────────────────────────────────────────────────────
 
 final class SidecarResultStruct extends Struct {
   external Pointer<Utf8> extractedCode;
   external Pointer<Utf8> detectedLanguage;
   external Pointer<Utf8> retrievedContext;
   external Pointer<Utf8> fullyFormattedPrompt;
+  @Int32()
+  external int latencyMs;
+  @Int32()
+  external int activeMinisters;
 }
 
-// ── Native C Signatures ─────────────────────────────────────────────────────
+// ── Native C Signatures ────────────────────────────────────────────────────────
+//
+// Maps to sidecar_c_api.h:
+//   void* sidecar_init(intent_path, embed_path, reranker_path, lang_path, db_path)
+//
 
 typedef SidecarInitC = Pointer<Void> Function(
-  Pointer<Utf8> langPath,
+  Pointer<Utf8> intentPath,
   Pointer<Utf8> embedPath,
+  Pointer<Utf8> rerankerPath,
+  Pointer<Utf8> langPath,
   Pointer<Utf8> dbPath,
 );
 typedef SidecarInitDart = Pointer<Void> Function(
-  Pointer<Utf8> langPath,
+  Pointer<Utf8> intentPath,
   Pointer<Utf8> embedPath,
+  Pointer<Utf8> rerankerPath,
+  Pointer<Utf8> langPath,
   Pointer<Utf8> dbPath,
 );
 
@@ -57,23 +69,27 @@ typedef StartNativeServerDart = void Function(
 typedef StopNativeServerC = Void Function();
 typedef StopNativeServerDart = void Function();
 
-// ── High Level Result Class ─────────────────────────────────────────────────
+// ── High-Level Result Class ────────────────────────────────────────────────────
 
 class SidecarResult {
   final String extractedCode;
   final String detectedLanguage;
   final String retrievedContext;
   final String fullyFormattedPrompt;
+  final int latencyMs;
+  final int activeMinisters;
 
   SidecarResult({
     required this.extractedCode,
     required this.detectedLanguage,
     required this.retrievedContext,
     required this.fullyFormattedPrompt,
+    this.latencyMs = 0,
+    this.activeMinisters = 8,
   });
 }
 
-// ── Dart FFI Binding Singleton ─────────────────────────────────────────────
+// ── Dart FFI Binding Singleton ─────────────────────────────────────────────────
 
 class SidecarBindings {
   static final DynamicLibrary _lib = Platform.isAndroid
@@ -98,7 +114,12 @@ class SidecarBindings {
   static final StopNativeServerDart _stopNativeServer =
       _lib.lookupFunction<StopNativeServerC, StopNativeServerDart>('stop_native_mcp_server');
 
-  static void startNativeServer({required String ggufPath, required String onnxPath, int port = 8080}) {
+  // ── Native server helpers ────────────────────────────────────────────────────
+  static void startNativeServer({
+    required String ggufPath,
+    required String onnxPath,
+    int port = 8080,
+  }) {
     final ggufPtr = ggufPath.toNativeUtf8();
     final onnxPtr = onnxPath.toNativeUtf8();
     try {
@@ -109,29 +130,38 @@ class SidecarBindings {
     }
   }
 
-  static void stopNativeServer() {
-    _stopNativeServer();
-  }
+  static void stopNativeServer() => _stopNativeServer();
+
+  // ── Instance (owns the opaque C++ handle) ─────────────────────────────────
 
   Pointer<Void>? _handle;
 
   bool get isInitialized => _handle != null;
 
+  /// Initialise all 4 ONNX NPU sessions.
+  ///
+  /// Pass empty string for any model not yet downloaded — the C++ layer
+  /// will activate the deterministic fallback for that stage.
   void initialize({
-    String langPath = '',
-    String embedPath = '',
-    String dbPath = '',
+    String intentPath  = '',   // all_minilm_l6_v2.onnx
+    String embedPath   = '',   // bge_small_en_v1_5.onnx
+    String rerankerPath = '',  // bge_reranker_base.onnx
+    String langPath    = '',   // codeberta.onnx
+    String dbPath      = '',
   }) {
     if (_handle != null) return;
-    final langPtr = langPath.toNativeUtf8();
-    final embedPtr = embedPath.toNativeUtf8();
-    final dbPtr = dbPath.toNativeUtf8();
-
+    final intentPtr   = intentPath.toNativeUtf8();
+    final embedPtr    = embedPath.toNativeUtf8();
+    final rerankerPtr = rerankerPath.toNativeUtf8();
+    final langPtr     = langPath.toNativeUtf8();
+    final dbPtr       = dbPath.toNativeUtf8();
     try {
-      _handle = _initNative(langPtr, embedPtr, dbPtr);
+      _handle = _initNative(intentPtr, embedPtr, rerankerPtr, langPtr, dbPtr);
     } finally {
-      calloc.free(langPtr);
+      calloc.free(intentPtr);
       calloc.free(embedPtr);
+      calloc.free(rerankerPtr);
+      calloc.free(langPtr);
       calloc.free(dbPtr);
     }
   }
@@ -149,22 +179,22 @@ class SidecarBindings {
     if (imageBytes != null && imageBytes.isNotEmpty) {
       imgLen = imageBytes.length;
       imgPtr = calloc<Uint8>(imgLen);
-      final nativeList = imgPtr.asTypedList(imgLen);
-      nativeList.setAll(0, imageBytes);
+      imgPtr.asTypedList(imgLen).setAll(0, imageBytes);
     }
 
     try {
       final resPtr = _processNative(_handle!, imgPtr, imgLen, queryPtr);
       if (resPtr == nullptr) return null;
 
-      final struct = resPtr.ref;
+      final s = resPtr.ref;
       final result = SidecarResult(
-        extractedCode: struct.extractedCode != nullptr ? struct.extractedCode.toDartString() : '',
-        detectedLanguage: struct.detectedLanguage != nullptr ? struct.detectedLanguage.toDartString() : '',
-        retrievedContext: struct.retrievedContext != nullptr ? struct.retrievedContext.toDartString() : '',
-        fullyFormattedPrompt: struct.fullyFormattedPrompt != nullptr ? struct.fullyFormattedPrompt.toDartString() : '',
+        extractedCode:        s.extractedCode        != nullptr ? s.extractedCode.toDartString()        : '',
+        detectedLanguage:     s.detectedLanguage     != nullptr ? s.detectedLanguage.toDartString()     : '',
+        retrievedContext:     s.retrievedContext     != nullptr ? s.retrievedContext.toDartString()     : '',
+        fullyFormattedPrompt: s.fullyFormattedPrompt != nullptr ? s.fullyFormattedPrompt.toDartString() : '',
+        latencyMs:            s.latencyMs,
+        activeMinisters:      s.activeMinisters,
       );
-
       _freeResultNative(resPtr);
       return result;
     } finally {
