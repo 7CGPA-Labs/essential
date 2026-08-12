@@ -188,8 +188,9 @@ CognitiveVault::searchSimilar(const std::vector<float>& query_vec,
         "JOIN memory_records mr ON mr.id = mv.record_id "
         "WHERE mv.embedding MATCH ? AND k = ?";
 
-    if (!category_filter.empty()) {
-        sql += " AND mr.category = '" + category_filter + "'";
+    bool hasCategory = !category_filter.empty();
+    if (hasCategory) {
+        sql += " AND mr.category = ?";
     }
     sql += ";";
 
@@ -200,6 +201,9 @@ CognitiveVault::searchSimilar(const std::vector<float>& query_vec,
                           static_cast<int>(query_vec.size() * sizeof(float)),
                           SQLITE_TRANSIENT);
         sqlite3_bind_int(stmt, 2, top_k);
+        if (hasCategory) {
+            sqlite3_bind_text(stmt, 3, category_filter.c_str(), -1, SQLITE_TRANSIENT);
+        }
 
         while (sqlite3_step(stmt) == SQLITE_ROW) {
             MemoryRecord r;

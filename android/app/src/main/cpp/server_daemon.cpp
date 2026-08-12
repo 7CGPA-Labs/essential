@@ -115,11 +115,9 @@ static std::string extractLastUserMessage(const std::string& json) {
 struct ServerDaemonImpl {
     KingdomEngineHandle engine = nullptr;
     std::atomic<bool>   running{false};
-    std::thread         listenThread;
     int                 port = 8080;
 
-    // Simplified socket-based HTTP server (production would use cpp-httplib)
-    // For this implementation, we use the existing native_server infrastructure
+    // Threading is managed entirely by native_server (start_native_mcp_server)
 };
 
 static ServerDaemonImpl* g_daemon = nullptr;

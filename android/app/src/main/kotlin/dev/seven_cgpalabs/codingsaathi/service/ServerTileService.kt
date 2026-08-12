@@ -24,7 +24,11 @@ class ServerTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val running = ServerForegroundService.nativeIsServerRunning()
+        val running = try {
+            ServerForegroundService.nativeIsServerRunning()
+        } catch (_: UnsatisfiedLinkError) {
+            false
+        }
         Log.i(TAG, "Tile clicked – server currently ${if (running) "running" else "stopped"}")
 
         val intent = Intent(this, ServerForegroundService::class.java).apply {
