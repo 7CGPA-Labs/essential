@@ -72,4 +72,13 @@ dependencies {
     // ONNX Runtime Android — provides libonnxruntime.so (arm64) and C++ headers
     // via the prefab mechanism. CMake links against onnxruntime::onnxruntime.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+
+    // AndroidX Preference for System Settings UI (PreferenceFragmentCompat)
+    implementation("androidx.preference:preference-ktx:1.2.1")
+
+    // AndroidX AppCompat for AppPreferenceActivity
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // FileProvider for log sharing
+    implementation("androidx.core:core-ktx:1.13.1")
 }
