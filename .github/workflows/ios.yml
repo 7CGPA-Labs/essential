@@ -1,0 +1,49 @@
+name: iOS Build
+
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Flutter stub files
+        run: |
+          mkdir -p Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Sources/FlutterGeneratedPluginSwiftPackage
+          cat > Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift << 'EOF'
+          // swift-tools-version: 5.9
+          import PackageDescription
+          let package = Package(
+              name: "FlutterGeneratedPluginSwiftPackage",
+              products: [.library(name: "FlutterGeneratedPluginSwiftPackage", targets: ["FlutterGeneratedPluginSwiftPackage"])],
+              targets: [.target(name: "FlutterGeneratedPluginSwiftPackage")]
+          )
+          EOF
+          echo "// stub" > Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Sources/FlutterGeneratedPluginSwiftPackage/stub.swift
+          touch Flutter/AppFrameworkInfo.plist
+          echo '// stub' > Flutter/Debug.xcconfig
+          echo '// stub' > Flutter/Release.xcconfig
+          echo '// stub' > Flutter/Generated.xcconfig
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO

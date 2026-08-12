@@ -26,12 +26,31 @@ set_target_properties(libggml_opencl   PROPERTIES IMPORTED_LOCATION ${JNI_DIR}/l
 set_target_properties(libomp          PROPERTIES IMPORTED_LOCATION ${JNI_DIR}/libomp.so)
 set_target_properties(libonnxruntime  PROPERTIES IMPORTED_LOCATION ${JNI_DIR}/libonnxruntime.so)
 
+# ── SQLite3 (bundled with sqlite-vec extension) ────────────────────────────────
+# If a local copy of sqlite3.c exists, compile it; otherwise link system lib.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sqlite3.c")
+    add_library(sqlite3_local STATIC sqlite3.c)
+    target_compile_definitions(sqlite3_local PRIVATE
+        SQLITE_ENABLE_FTS5
+        SQLITE_ENABLE_JSON1
+    )
+    target_include_directories(sqlite3_local PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+else()
+    # Fallback: expect sqlite3 headers in system path
+    add_library(sqlite3_local INTERFACE)
+    target_link_libraries(sqlite3_local INTERFACE -lsqlite3)
+endif()
+
 # ── Main FFI shared library ────────────────────────────────────────────────────
 add_library(essential_native SHARED
     llama_wrapper.cpp
     sidecar_engine.cpp
     sidecar_c_api.cpp
     native_server.cpp
+    logger.cpp
+    cognitive_vault.cpp
+    kingdom_orchestrator.cpp
+    server_daemon.cpp
 )
 
 target_include_directories(essential_native PRIVATE
@@ -52,4 +71,5 @@ target_link_libraries(essential_native
     libggml_cpu
     libggml_opencl
     libonnxruntime
+    sqlite3_local
 )

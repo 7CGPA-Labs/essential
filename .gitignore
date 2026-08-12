@@ -10,7 +10,6 @@
 .history
 .svn/
 .swiftpm/
-migrate_working_dir/
 
 # IDE files
 *.iml
@@ -19,19 +18,8 @@ migrate_working_dir/
 .idea/
 .vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
+# Build output
 /build/
-/coverage/
-
-# Symbolication & obfuscation
-app.*.symbols
-app.*.map.json
 
 # Android Studio & Gradle build artifacts
 /android/app/debug
@@ -39,6 +27,7 @@ app.*.map.json
 /android/app/release
 /android/.gradle
 /android/captures
+local.properties
 
 # Native CMake, C++ build & Large AI Model Weights
 .cxx/

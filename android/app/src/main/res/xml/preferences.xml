@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  preferences.xml
+  Native System Settings UI for the Kingdom AI Server.
+  Rendered via PreferenceFragmentCompat under Settings → Apps → Kingdom AI Server → App Settings.
+-->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Model & Storage -->
+    <PreferenceCategory android:title="Model &amp; Storage">
+
+        <Preference
+            android:key="pref_model_path"
+            android:title="Model Storage Location"
+            android:summary="Loading…"
+            android:selectable="false"
+            android:icon="@android:drawable/ic_menu_save" />
+
+        <Preference
+            android:key="pref_model_redownload"
+            android:title="Re-Verify / Redownload Models"
+            android:summary="Check all 9 model files and redownload any missing assets"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <!-- Server -->
+    <PreferenceCategory android:title="Server Configuration">
+
+        <Preference
+            android:key="pref_server_ip"
+            android:title="Server IP &amp; Port"
+            android:summary="http://127.0.0.1:8080"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:key="pref_server_toggle"
+            android:title="Master Server Switch"
+            android:summary="Start or stop the AI server"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <!-- Diagnostics -->
+    <PreferenceCategory android:title="Process Logs &amp; Diagnostics">
+
+        <Preference
+            android:key="pref_log_viewer"
+            android:title="Recent Process Logs"
+            android:summary="View rolling server.log entries"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="pref_log_export"
+            android:title="Export / Share Logs"
+            android:summary="Share server.log via system share sheet"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <!-- ADB / USB -->
+    <PreferenceCategory android:title="Developer Tools">
+
+        <Preference
+            android:key="pref_adb_command"
+            android:title="ADB Port Forward Command"
+            android:summary="adb forward tcp:8080 tcp:8080"
+            android:selectable="true"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

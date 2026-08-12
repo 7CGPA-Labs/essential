@@ -1,15 +1,14 @@
 # ⚡ CodingSaathi AI — On-Device Agentic Pair Programmer & 8-Agent Multi-Agent Council
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?logo=flutter)](https://flutter.dev)
-[![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.18.0-00599C?logo=onnx)](https://onnxruntime.ai)
+[![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.20.0-00599C?logo=onnx)](https://onnxruntime.ai)
 [![Hardware Acceleration](https://img.shields.io/badge/Hardware-Android_OpenCL_GPU-FF6F00?logo=android)](https://developer.android.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**CodingSaathi AI** is an on-device agentic pair programmer, mini-app execution environment, and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android, it combines GPU-accelerated Small Language Models (Qwen2.5-Coder-1.5B) with a dedicated **8-Agent Multi-Agent Council (C++ ONNX Runtime)**, a Cognitive Memory System, and a split-screen Project Studio Canvas.
+**CodingSaathi AI** is an on-device agentic pair programmer and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android and iOS, it combines GPU-accelerated Small Language Models (Qwen2.5-Coder-1.5B) with a dedicated **8-Agent Multi-Agent Council (C++ ONNX Runtime)** and a Cognitive Memory System.
 
 ---
 
-## 🏛️ System Architecture & Central Orchestrator
+## 🏛️ System Architecture
 
 ```text
                                     ┌────────────────────────────────────────────────────────┐
@@ -32,21 +31,23 @@
                                                                 │
                                                                 ▼
                                             ┌───────────────────────────────────────┐
-                                            │   CENTRAL PIPELINE ORCHESTRATOR       │
+                                            │   KINGDOM ORCHESTRATOR (C++ Facade)   │
                                             ├───────────────────────────────────────┤
-                                            │  • Single Shared Isolate Coordinator  │
-                                            │  • Dynamic Mid-Stream <<NPU_QUERY>>   │
+                                            │  • Unified C-ABI for GPU + NPU       │
+                                            │  • OpenAI-compatible HTTP server      │
+                                            │  • Cognitive Vault (SQLite + vec)     │
                                             └───────────────────┬───────────────────┘
                                                                 │
                    ┌────────────────────────────────────────────┼────────────────────────────────────────────┐
                    │                                            │                                            │
                    ▼                                            ▼                                            ▼
     ┌─────────────────────────────┐              ┌─────────────────────────────┐              ┌─────────────────────────────┐
-    │          CHAT TAB           │              │    PROJECT STUDIO CANVAS    │              │       MCP SERVER API        │
+    │     ANDROID (Kotlin/JNI)    │              │       iOS (Swift/C++)       │              │       MCP SERVER API        │
     ├─────────────────────────────┤              ├─────────────────────────────┤              ├─────────────────────────────┤
-    │  • Interactive AI Chat      │              │  • Split-Screen Live Preview│              │  • JSON-RPC 2.0 & OpenAI API│
-    │  • Glassmorphic Toast HUD   │              │  • Single-File HTML Sandbox │              │  • IDE Integration (Continue)│
-    │  • Intelligent Web Search   │              │  • Real-Time Code Editing   │              │  • Context Vector Endpoints │
+    │  • Foreground Service       │              │  • Model Asset Manager      │              │  • JSON-RPC 2.0 & OpenAI API│
+    │  • Quick Settings Tile      │              │  • Log Export Manager       │              │  • IDE Integration (Continue)│
+    │  • Home Screen Widget       │              │  • WidgetKit Telemetry      │              │  • Context Vector Endpoints │
+    │  • System Settings UI       │              │  • Scene Delegate           │              │                             │
     └─────────────────────────────┘              └─────────────────────────────┘              └─────────────────────────────┘
 ```
 
@@ -68,25 +69,21 @@
 | **Agent 8: Prompt Synthesizer** | Cognitive Engine | **CPU** | Formats NPU pre-processed context payloads into structured prompt blocks. |
 | **Primary Code SLM** | `qwen2.5-coder-1.5b` (~1.1 GB) | **Adreno GPU** | **100% OpenCL GPU Layer Offload** for high-speed token generation. |
 
-### 2. ⚡ Unified Central Orchestration (`PipelineOrchestrator`)
-A single shared orchestrator connects the **Chat Tab**, **Project Studio Canvas**, and **MCP Server**:
-- **Shared Memory & Vector RAG**: Indexed code snippets and conversation history are immediately available across all three entry points.
-- **Dynamic Mid-Generation Re-entry**: As Qwen streams tokens on the GPU, if it emits `<<NPU_QUERY:...>>`, the orchestrator pauses streaming (`~178ms`), dispatches the 8 NPU agents in parallel, injects new context into the active KV-cache, and resumes token streaming!
+### 2. ⚡ Kingdom Orchestrator (Unified C++ Facade)
+A unified C-ABI facade connects the GPU LLM, NPU sidecar pipeline, and Cognitive Vault:
+- **`kingdom_engine_init()`**: Initializes all subsystems
+- **`kingdom_engine_process_async()`**: Processes requests with SSE streaming
+- **`kingdom_engine_start_server()`**: Starts the HTTP server on `0.0.0.0:8080`
+- **Dynamic Mid-Generation Re-entry**: As Qwen streams tokens on the GPU, if it emits `<<NPU_QUERY:...>>`, the orchestrator pauses streaming, dispatches the 8 NPU agents in parallel, injects new context, and resumes.
 
-### 3. 🌐 Intelligent Web Search Retrieval (NLP Webcrawler)
-- Automatically detects informational & web-directed queries.
-- Fetches real-time web context via DuckDuckGo HTML & Wikipedia APIs.
-- Pre-processes HTML snippets via NPU vectorizers so Qwen generates grounded, factual answers.
-
-### 4. 🎨 Project Studio & WebView Sandbox (`window.FlutterBridge`)
-- **Split-Screen Canvas**: Interactive code editor on top with a live WebView preview below.
-- **`<html_app>` Code Patcher**: Enforces clean single-file HTML generation wrapped in `<html_app>` tags, preventing LLM code diff hallucination.
-- **Native Host APIs**: Exposes device sensors, GPS geofencing, torch/flashlight control, live status notifications, and network telemetry via `window.FlutterBridge`.
-
-### 5. 🔌 Production MCP (Model Context Protocol) Server
+### 3. 🔌 Production MCP (Model Context Protocol) Server
 - Listens locally on `http://0.0.0.0:8080`.
 - Implements OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) and JSON-RPC (`/rpc`, `/sse`).
 - Connects directly to desktop IDEs like **Continue.dev**, **Cursor**, or **VS Code**.
+
+### 4. 📱 Native Platform Integration
+- **Android**: Foreground service, Quick Settings tile, home screen telemetry widget, system settings UI
+- **iOS**: Model asset management, log export, WidgetKit telemetry widget
 
 ---
 
@@ -140,17 +137,14 @@ files/
 
 ---
 
-## 🚀 Building & Testing
+## 🚀 Building
 
 ```bash
-# Run Static Analysis
-flutter analyze
+# Build Android Debug APK (requires Android SDK + NDK 28)
+cd android && ./gradlew assembleDebug
 
-# Run All Unit & Integration Tests (14/14 Passed)
-flutter test
-
-# Build Debug APK
-flutter build apk --debug
+# Build iOS (requires Xcode)
+cd ios && xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Debug
 ```
 
 ---
