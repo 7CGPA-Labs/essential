@@ -36,6 +36,7 @@ typedef void (*SseStreamCallback)(const char* sse_json_chunk, void* user_data);
 typedef struct KingdomTelemetry {
     float  cpu_percent;
     float  gpu_percent;
+    float  npu_percent;
     int64_t ram_used_mb;
     int64_t ram_total_mb;
     int64_t vram_used_mb;

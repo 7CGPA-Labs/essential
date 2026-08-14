@@ -39,7 +39,7 @@
             android:singleLine="true" />
     </LinearLayout>
 
-    <!-- Telemetry gauges -->
+    <!-- Telemetry gauges row 1: CPU & RAM -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -62,6 +62,33 @@
             android:layout_weight="1"
             android:text="RAM: 0/0 MB"
             android:textColor="#88AADD"
+            android:textSize="11sp"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <!-- Telemetry gauges row 2: GPU & NPU -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp">
+
+        <TextView
+            android:id="@+id/widget_gpu"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="GPU: 0.0%"
+            android:textColor="#FFBB66"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/widget_npu"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="NPU: 0.0 ms"
+            android:textColor="#DD88FF"
             android:textSize="11sp"
             android:gravity="end" />
     </LinearLayout>

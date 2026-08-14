@@ -68,6 +68,27 @@
             android:selectable="false"
             app:iconSpaceReserved="false" />
 
+        <Preference
+            android:key="pref_telemetry_gpu"
+            android:title="GPU Utilization (OpenCL)"
+            android:summary="0.0%"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="pref_telemetry_vram"
+            android:title="GPU VRAM Allocated"
+            android:summary="0 / 0 MB"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="pref_telemetry_npu"
+            android:title="NPU Sidecar Latency"
+            android:summary="0.0 ms"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <!-- Diagnostics -->

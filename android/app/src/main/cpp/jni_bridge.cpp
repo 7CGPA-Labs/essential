@@ -124,6 +124,58 @@ Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024Server
     return static_cast<jlong>(t.ram_total_mb);
 }
 
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetGpuPercent(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.gpu_percent;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetVramUsedMb(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return static_cast<jlong>(t.vram_used_mb);
+}
+
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetNpuPercent(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.npu_percent;
+}
+
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetNpuLatencyMs(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.npu_latency_ms;
+}
+
 // ── ServerTelemetryWidget ─────────────────────────────────────────────────────
 
 JNIEXPORT jboolean JNICALL
@@ -169,6 +221,45 @@ Java_dev_seven_1cgpalabs_codingsaathi_widget_ServerTelemetryWidget_nativeGetRamT
         }
     }
     return static_cast<jlong>(t.ram_total_mb);
+}
+
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_widget_ServerTelemetryWidget_nativeGetGpuPercent(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.gpu_percent;
+}
+
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_widget_ServerTelemetryWidget_nativeGetNpuPercent(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.npu_percent;
+}
+
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_widget_ServerTelemetryWidget_nativeGetNpuLatencyMs(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.npu_latency_ms;
 }
 
 } // extern "C"

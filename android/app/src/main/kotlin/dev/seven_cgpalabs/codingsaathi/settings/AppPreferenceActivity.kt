@@ -52,6 +52,10 @@ class AppPreferenceActivity : AppCompatActivity() {
             @JvmStatic external fun nativeGetCpuPercent(): Float
             @JvmStatic external fun nativeGetRamUsedMb(): Long
             @JvmStatic external fun nativeGetRamTotalMb(): Long
+            @JvmStatic external fun nativeGetGpuPercent(): Float
+            @JvmStatic external fun nativeGetVramUsedMb(): Long
+            @JvmStatic external fun nativeGetNpuPercent(): Float
+            @JvmStatic external fun nativeGetNpuLatencyMs(): Float
         }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -150,6 +154,10 @@ class AppPreferenceActivity : AppCompatActivity() {
             val cpu = try { nativeGetCpuPercent() } catch (_: Exception) { 0f }
             val ramUsed = try { nativeGetRamUsedMb() } catch (_: Exception) { 0L }
             val ramTotal = try { nativeGetRamTotalMb() } catch (_: Exception) { 0L }
+            val gpu = try { nativeGetGpuPercent() } catch (_: Exception) { 0f }
+            val vramUsed = try { nativeGetVramUsedMb() } catch (_: Exception) { 0L }
+            val npuPercent = try { nativeGetNpuPercent() } catch (_: Exception) { 0f }
+            val npuLatency = try { nativeGetNpuLatencyMs() } catch (_: Exception) { 0f }
 
             findPreference<Preference>("pref_telemetry_status")?.summary =
                 if (running) "🟢 Active (Listening on 0.0.0.0:8080)" else "🔴 Stopped (Offline)"
@@ -157,6 +165,12 @@ class AppPreferenceActivity : AppCompatActivity() {
                 "%.1f%%".format(cpu)
             findPreference<Preference>("pref_telemetry_ram")?.summary =
                 "$ramUsed / $ramTotal MB"
+            findPreference<Preference>("pref_telemetry_gpu")?.summary =
+                "%.1f%% (OpenCL VRAM: $vramUsed MB)".format(gpu)
+            findPreference<Preference>("pref_telemetry_vram")?.summary =
+                "$vramUsed MB"
+            findPreference<Preference>("pref_telemetry_npu")?.summary =
+                "%.0f%% (Latency: %.1f ms)".format(npuPercent, npuLatency)
             findPreference<SwitchPreferenceCompat>("pref_server_toggle")?.isChecked = running
         }
 

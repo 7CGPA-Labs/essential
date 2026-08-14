@@ -31,6 +31,9 @@ class ServerTelemetryWidget : AppWidgetProvider() {
         @JvmStatic private external fun nativeGetCpuPercent(): Float
         @JvmStatic private external fun nativeGetRamUsedMb(): Long
         @JvmStatic private external fun nativeGetRamTotalMb(): Long
+        @JvmStatic private external fun nativeGetGpuPercent(): Float
+        @JvmStatic private external fun nativeGetNpuPercent(): Float
+        @JvmStatic private external fun nativeGetNpuLatencyMs(): Float
 
         /**
          * Trigger a widget refresh from any context (e.g. after server state change).
@@ -81,6 +84,8 @@ class ServerTelemetryWidget : AppWidgetProvider() {
         val cpu = try { nativeGetCpuPercent() } catch (_: Exception) { 0f }
         val ramUsed = try { nativeGetRamUsedMb() } catch (_: Exception) { 0L }
         val ramTotal = try { nativeGetRamTotalMb() } catch (_: Exception) { 0L }
+        val gpu = try { nativeGetGpuPercent() } catch (_: Exception) { 0f }
+        val npu = try { nativeGetNpuPercent() } catch (_: Exception) { 0f }
 
         // Server URL
         views.setTextViewText(R.id.widget_ip_address,
@@ -90,9 +95,13 @@ class ServerTelemetryWidget : AppWidgetProvider() {
         views.setTextViewText(R.id.widget_status,
             if (running) "🟢 Active" else "🔴 Stopped")
 
-        // Telemetry gauges
+        // Telemetry gauges row 1: CPU & RAM
         views.setTextViewText(R.id.widget_cpu, "CPU: ${"%.1f".format(cpu)}%")
         views.setTextViewText(R.id.widget_ram, "RAM: ${ramUsed}/${ramTotal} MB")
+
+        // Telemetry gauges row 2: GPU & NPU
+        views.setTextViewText(R.id.widget_gpu, "GPU: ${"%.1f".format(gpu)}%")
+        views.setTextViewText(R.id.widget_npu, "NPU: ${"%.0f".format(npu)}%")
 
         // Toggle button
         views.setTextViewText(R.id.widget_toggle_btn,
