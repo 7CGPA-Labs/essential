@@ -72,6 +72,9 @@ Operating 100% locally on Android (NDK C++ / Kotlin) and iOS (C++ / Swift), it c
 | **Minister 7: Security Auditor** | `codebert-vulnerability` (~125 MB `.onnx`) | **NPU** | Scans generated code diffs for SQL injections and leaked secrets. | 10–15 ms |
 | **Minister 8: Diagram Generator**| `mobile_diffusion_lcm` (~280 MB `.onnx`)| **NPU** | Generates architecture diagrams and visual assets on demand. | 150–300 ms |
 
+> [!NOTE]
+> **GPU Acceleration Backend Note**: **OpenCL** (`libggml-opencl.so`) has replaced Vulkan as the dedicated Android GPU inference backend for `llama.cpp`. OpenCL provides superior performance, zero-copy buffer sharing, and direct compute kernel compilation on Qualcomm Adreno and ARM Mali GPUs. iOS continues to leverage native Apple Metal (`ggml-metal`).
+
 ---
 
 ## 📱 OS Native Surface Distribution
