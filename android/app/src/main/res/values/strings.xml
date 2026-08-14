@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CodingSaathi</string>
+    <string name="ai_server_tile_label">AI Server</string>
+    <string name="settings_title">Kingdom AI Server Settings</string>
+</resources>

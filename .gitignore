@@ -36,4 +36,5 @@ models/
 *.onnx
 *.gguf
 *.so
+!android/app/src/main/jniLibs/**
 *.apk

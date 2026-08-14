@@ -1,10 +1,14 @@
-# ⚡ CodingSaathi AI — On-Device Agentic Pair Programmer & 8-Agent Multi-Agent Council
+# ⚡ CodingSaathi AI — Pure Native On-Device AI Server & 8-Minister Council
 
+[![Android Build](https://github.com/7CGPA-Labs/codingsaathi/actions/workflows/android.yml/badge.svg)](https://github.com/7CGPA-Labs/codingsaathi/actions/workflows/android.yml)
+[![iOS Build](https://github.com/7CGPA-Labs/codingsaathi/actions/workflows/ios.yml/badge.svg)](https://github.com/7CGPA-Labs/codingsaathi/actions/workflows/ios.yml)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.20.0-00599C?logo=onnx)](https://onnxruntime.ai)
-[![Hardware Acceleration](https://img.shields.io/badge/Hardware-Android_OpenCL_GPU-FF6F00?logo=android)](https://developer.android.com)
+[![Hardware Acceleration](https://img.shields.io/badge/Hardware-Android_OpenCL_GPU_%26_Apple_Metal-FF6F00?logo=android)](https://developer.android.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**CodingSaathi AI** is an on-device agentic pair programmer and Model Context Protocol (MCP) server designed for mobile devices. Operating 100% locally on Android and iOS, it combines GPU-accelerated Small Language Models (Qwen2.5-Coder-1.5B) with a dedicated **8-Agent Multi-Agent Council (C++ ONNX Runtime)** and a Cognitive Memory System.
+**CodingSaathi AI** is a pure native, UI-less on-device AI Server and Model Context Protocol (MCP) server for mobile devices designed to run as an OpenAI-compatible backend for **Continue.dev** (VS Code / Cursor).
+
+Operating 100% locally on Android (NDK C++ / Kotlin) and iOS (C++ / Swift), it combines GPU-accelerated Small Language Models (`Qwen2.5-Coder-1.5B`) with an **8-Minister Council (ONNX Runtime NPU Sidecars)** and an SQLite + `sqlite-vec` Cognitive Memory Backbone. All controls, live telemetry (CPU, GPU, RAM, VRAM, NPU latency), and logs are distributed across native OS surfaces (System Settings, Home Screen Widgets, Quick Settings Tiles, and System Notifications).
 
 ---
 
@@ -21,10 +25,10 @@
     ┌─────────────────────────────┐                                                           ┌─────────────────────────────┐
     │    PRIMARY ENGINE (GPU)     │                                                           │   SIDECAR ENGINE (NPU/CPU)  │
     ├─────────────────────────────┤                                                           ├─────────────────────────────┤
-    │  • llama.cpp + OpenCL       │                                                           │  • 8 ONNX Multi-Agent Council│
+    │  • llama.cpp + OpenCL/Metal │                                                           │  • 8 ONNX Minister Council  │
     │  • Qwen2.5-Coder-1.5B (GGUF)│                                                           │  • Intent, Dense Embeds,    │
-    │  • 100% VRAM Layer Offload  │                                                           │    Re-ranker, LangID, SIMD  │
-    │  • Zero CPU Load            │                                                           │  • Sub-ms Dot-Product Search │
+    │  • 100% VRAM Layer Offload  │                                                           │    Re-ranker, LangID, SIMD, │
+    │  • Zero CPU Load            │                                                           │    Autocomplete, Security   │
     └──────────────┬──────────────┘                                                           └──────────────┬──────────────┘
                    │                                                                                         │
                    └────────────────────────────────────────────┬────────────────────────────────────────────┘
@@ -33,57 +37,58 @@
                                             ┌───────────────────────────────────────┐
                                             │   KINGDOM ORCHESTRATOR (C++ Facade)   │
                                             ├───────────────────────────────────────┤
-                                            │  • Unified C-ABI for GPU + NPU       │
-                                            │  • OpenAI-compatible HTTP server      │
-                                            │  • Cognitive Vault (SQLite + vec)     │
+                                            │  • Unified C-ABI (kingdom_orchestrator│
+                                            │  • OpenAI HTTP Server (0.0.0.0:8080)  │
+                                            │  • Cognitive Vault (SQLite + vec0)    │
+                                            │  • Rolling Logger (10 MB auto-rotate) │
                                             └───────────────────┬───────────────────┘
                                                                 │
                    ┌────────────────────────────────────────────┼────────────────────────────────────────────┐
                    │                                            │                                            │
                    ▼                                            ▼                                            ▼
     ┌─────────────────────────────┐              ┌─────────────────────────────┐              ┌─────────────────────────────┐
-    │     ANDROID (Kotlin/JNI)    │              │       iOS (Swift/C++)       │              │       MCP SERVER API        │
+    │     ANDROID (Kotlin/NDK)    │              │       iOS (Swift/C++)       │              │      CONTINUE.DEV / MCP     │
     ├─────────────────────────────┤              ├─────────────────────────────┤              ├─────────────────────────────┤
-    │  • Foreground Service       │              │  • Model Asset Manager      │              │  • JSON-RPC 2.0 & OpenAI API│
-    │  • Quick Settings Tile      │              │  • Log Export Manager       │              │  • IDE Integration (Continue)│
-    │  • Home Screen Widget       │              │  • WidgetKit Telemetry      │              │  • Context Vector Endpoints │
-    │  • System Settings UI       │              │  • Scene Delegate           │              │                             │
+    │  • Foreground Service       │              │  • Model Asset Manager      │              │  • POST /v1/chat/completions│
+    │  • Quick Settings Tile      │              │  • Log Export Manager       │              │  • POST /v1/completions     │
+    │  • Home Screen Widget       │              │  • WidgetKit Telemetry      │              │  • POST /v1/embeddings      │
+    │  • System Settings UI       │              │  • Settings.bundle          │              │  • adb forward tcp:8080 8080│
     └─────────────────────────────┘              └─────────────────────────────┘              └─────────────────────────────┘
 ```
 
 ---
 
-## ✨ Key Features
+## 🛠️ Silicon Allocation Matrix
 
-### 1. 🤖 8-Agent Multi-Agent Council (C++ & ONNX Acceleration)
+| Subsystem | Model / Engine | Hardware Engine | Role & Capabilities | Latency |
+| :--- | :--- | :--- | :--- | :--- |
+| **Primary Code SLM** | `qwen2.5-coder-1.5b` (Q4_K_M GGUF) | **Adreno GPU / Metal** | Chat completions, code generation, diff synthesis, SSE streaming. | High-speed tokens |
+| **Minister 1: Intent Router** | `all-MiniLM-L6-v2` (~25 MB `.onnx`) | **NPU** | Routes queries (`bug_fix`, `code_gen`, `explanation`, `web_search`). | 1–3 ms |
+| **Minister 2: Repo Embedder** | `bge-small-en-v1.5` (~60 MB `.onnx`) | **NPU** | Powers `/v1/embeddings` dense 384-dim vector conversions for codebase indexing. | 5–10 ms |
+| **Minister 3: Re-Ranker** | `bge-reranker-base` (~110 MB `.onnx`) | **NPU** | Cross-attends query against retrieved context to select top 5 documents. | 10–18 ms |
+| **Minister 4: Code Parser** | `codeberta-base` (~125 MB `.onnx`) | **NPU** | Extracts syntax grammar and identifies programming language. | 8–15 ms |
+| **Minister 5: Speed Autocomplete**| `granite-code-128m` (~130 MB `.onnx`) | **NPU** | Handles `/v1/completions` for single-line inline tab completions without waking GPU LLM. | <30 ms |
+| **Minister 6: Fact Checker** | `nli-deberta-v3-small` (~90 MB `.onnx`) | **NPU** | Audits generated package imports and syntax against project manifests. | 8–12 ms |
+| **Minister 7: Security Auditor** | `codebert-vulnerability` (~125 MB `.onnx`) | **NPU** | Scans generated code diffs for SQL injections and leaked secrets. | 10–15 ms |
+| **Minister 8: Diagram Generator**| `mobile_diffusion_lcm` (~280 MB `.onnx`)| **NPU** | Generates architecture diagrams and visual assets on demand. | 150–300 ms |
 
-| Subsystem | Model / Engine | Hardware Engine | Role & Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Agent 1: Intent Classifier** | `all-MiniLM-L6-v2` (~23 MB) | **NPU** | Classifies query intent (`bug_fix`, `code_gen`, `explanation`, `web_search`). |
-| **Agent 2: Dense Vectorizer** | `bge-small-v1.5` (~133 MB) | **NPU** | Converts prompts & code blocks into 384-dimensional dense vectors. |
-| **Agent 3: Cross-Encoder Re-ranker** | `bge-reranker-base` (~110 MB) | **NPU** | Re-ranks retrieved vector snippets to select the top 5 most relevant docs. |
-| **Agent 4: Code Language ID** | `codeberta` (~90 MB) | **NPU** | Identifies source syntax (Dart, HTML, Python, JS). |
-| **Agent 5: VRAM Allocator** | Native Allocator | **GPU/RAM** | Monitors active KV-cache GPU VRAM boundaries. |
-| **Agent 6: Episodic Vault Manager** | SQLite Engine | **Storage** | Persists session turn memory across application restarts. |
-| **Agent 7: SIMD Vector Engine** | ARM Neon / AVX2 | **C++ SIMD** | Hardware-accelerated dot-product search across project vector indices. |
-| **Agent 8: Prompt Synthesizer** | Cognitive Engine | **CPU** | Formats NPU pre-processed context payloads into structured prompt blocks. |
-| **Primary Code SLM** | `qwen2.5-coder-1.5b` (~1.1 GB) | **Adreno GPU** | **100% OpenCL GPU Layer Offload** for high-speed token generation. |
+---
 
-### 2. ⚡ Kingdom Orchestrator (Unified C++ Facade)
-A unified C-ABI facade connects the GPU LLM, NPU sidecar pipeline, and Cognitive Vault:
-- **`kingdom_engine_init()`**: Initializes all subsystems
-- **`kingdom_engine_process_async()`**: Processes requests with SSE streaming
-- **`kingdom_engine_start_server()`**: Starts the HTTP server on `0.0.0.0:8080`
-- **Dynamic Mid-Generation Re-entry**: As Qwen streams tokens on the GPU, if it emits `<<NPU_QUERY:...>>`, the orchestrator pauses streaming, dispatches the 8 NPU agents in parallel, injects new context, and resumes.
+## 📱 OS Native Surface Distribution
 
-### 3. 🔌 Production MCP (Model Context Protocol) Server
-- Listens locally on `http://0.0.0.0:8080`.
-- Implements OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) and JSON-RPC (`/rpc`, `/sse`).
-- Connects directly to desktop IDEs like **Continue.dev**, **Cursor**, or **VS Code**.
+### Surface A: Native System Settings UI
+- **Android (`PreferenceFragmentCompat` under Settings → Apps → Kingdom AI Server → App Settings)**: Read-only model path, device IP address, master server start/stop switch, model auto-downloader trigger, live process log viewer, and system share intent for `server.log`.
+- **iOS (`Settings.bundle` under iOS Settings → Kingdom AI Server)**: Model storage location, server URL/port, and master toggle.
 
-### 4. 📱 Native Platform Integration
-- **Android**: Foreground service, Quick Settings tile, home screen telemetry widget, system settings UI
-- **iOS**: Model asset management, log export, WidgetKit telemetry widget
+### Surface B: Interactive Home Screen Widgets
+- **Android (`ServerTelemetryWidget` / `AppWidgetProvider`) & iOS (`WidgetKit` + `AppIntent`)**:
+  - Live IP address display (`http://127.0.0.1:8080`).
+  - Telemetry dashboard: CPU %, RAM (used/total MB), GPU %, VRAM (MB), and NPU latency.
+  - Interactive `[ START / STOP ]` button.
+
+### Surface C: Ultra-Minimal Notifications & Quick Settings
+- **Notification**: Minimal notification displaying status (`🟢 AI Server: Active | 8080` / `🔴 AI Server: Stopped`).
+- **Quick Settings Tile**: Global status bar tile for 1-tap toggling.
 
 ---
 
@@ -93,16 +98,16 @@ A unified C-ABI facade connects the GPU LLM, NPU sidecar pipeline, and Cognitive
 {
   "models": [
     {
-      "title": "On-Device Android SLM (Qwen2.5-Coder)",
+      "title": "On-Device Mobile SLM (Qwen2.5-Coder)",
       "provider": "openai",
       "model": "qwen2.5-coder-1.5b",
       "apiBase": "http://localhost:8080/v1"
     }
   ],
   "tabAutocompleteModel": {
-    "title": "On-Device Autocomplete",
+    "title": "On-Device Fast Tab Autocomplete",
     "provider": "openai",
-    "model": "qwen2.5-coder-1.5b",
+    "model": "granite-code-128m",
     "apiBase": "http://localhost:8080/v1"
   },
   "embeddingsProvider": {
@@ -113,38 +118,31 @@ A unified C-ABI facade connects the GPU LLM, NPU sidecar pipeline, and Cognitive
 }
 ```
 
-Forward port via ADB:
-```bash
-adb forward tcp:8080 tcp:8080
-```
+### Port Forwarding:
+* **Android (ADB)**:
+  ```bash
+  adb forward tcp:8080 tcp:8080
+  ```
+* **iOS (usbmuxd / iproxy)**:
+  ```bash
+  iproxy 8080 8080
+  ```
 
 ---
 
-## 🛠️ Model Storage Layout
+## 🚀 Building the Project
 
-Store model files on your Android device at:
-`/sdcard/Download/qwen2.5-coder-1.5b.gguf` or `/sdcard/Android/data/dev.seven_cgpalabs.codingsaathi/files/`
-
-```text
-files/
-├── qwen2.5-coder-1.5b.gguf          # Code Generation SLM (Adreno OpenCL GPU)
-└── models/
-    ├── all_minilm_l6_v2.onnx        # Intent Classifier (NPU)
-    ├── bge_small_v1.5.onnx          # Dense Vectorizer (NPU)
-    ├── bge_reranker_base.onnx       # Cross-Encoder Re-ranker (NPU)
-    └── codeberta.onnx               # Code Language Classifier (NPU)
-```
-
----
-
-## 🚀 Building
-
+### Android Debug APK:
 ```bash
-# Build Android Debug APK (requires Android SDK + NDK 28)
-cd android && ./gradlew assembleDebug
+cd android
+./gradlew clean assembleDebug
+```
+Output: `build/app/outputs/apk/debug/app-debug.apk`
 
-# Build iOS (requires Xcode)
-cd ios && xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Debug
+### iOS Simulator / Device Build:
+```bash
+cd ios
+xcodebuild build -workspace Runner.xcworkspace -scheme Runner -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO
 ```
 
 ---

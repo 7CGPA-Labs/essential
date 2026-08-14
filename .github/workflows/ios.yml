@@ -34,10 +34,42 @@ jobs:
           )
           EOF
           echo "// stub" > Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Sources/FlutterGeneratedPluginSwiftPackage/stub.swift
-          touch Flutter/AppFrameworkInfo.plist
+          cat > Flutter/AppFrameworkInfo.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>App</string>
+  <key>CFBundleIdentifier</key>
+  <string>dev.seven_cgpalabs.codingsaathi</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>App</string>
+  <key>CFBundlePackageType</key>
+  <string>FMWK</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0.0</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+</dict>
+</plist>
+EOF
           echo '// stub' > Flutter/Debug.xcconfig
           echo '// stub' > Flutter/Release.xcconfig
-          echo '// stub' > Flutter/Generated.xcconfig
+          cat > Flutter/Generated.xcconfig << 'EOF'
+FLUTTER_ROOT=/
+FLUTTER_APPLICATION_PATH=/
+FLUTTER_TARGET=lib/main.dart
+FLUTTER_BUILD_DIR=build
+FLUTTER_BUILD_NAME=1.0.0
+FLUTTER_BUILD_NUMBER=1
+EOF
 
       - name: Build
         run: |

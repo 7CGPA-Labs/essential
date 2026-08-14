@@ -6,8 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ── Shared libraries directory (arm64-v8a) ────────────────────────────────────
 set(JNI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI})
-set(LLAMA_INCLUDE_DIR $ENV{LOCALAPPDATA}/Android/llama.cpp-src/include)
-set(GGML_INCLUDE_DIR  $ENV{LOCALAPPDATA}/Android/llama.cpp-src/ggml/include)
+# ── Include directories ───────────────────────────────────────────────────────
+set(LLAMA_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llama_include)
+set(GGML_INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/ggml_include)
 
 # ── Prebuilt llama.cpp + ONNX Runtime shared libraries ─────────────────────────
 add_library(libllama        SHARED IMPORTED)
@@ -51,6 +52,7 @@ add_library(essential_native SHARED
     cognitive_vault.cpp
     kingdom_orchestrator.cpp
     server_daemon.cpp
+    jni_bridge.cpp
 )
 
 target_include_directories(essential_native PRIVATE
