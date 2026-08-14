@@ -44,6 +44,32 @@
 
     </PreferenceCategory>
 
+    <!-- Live Telemetry -->
+    <PreferenceCategory android:title="Live System Telemetry">
+
+        <Preference
+            android:key="pref_telemetry_status"
+            android:title="AI Server Status"
+            android:summary="Checking…"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="pref_telemetry_cpu"
+            android:title="CPU Utilization"
+            android:summary="0.0%"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="pref_telemetry_ram"
+            android:title="System RAM"
+            android:summary="0 / 0 MB"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
     <!-- Diagnostics -->
     <PreferenceCategory android:title="Process Logs &amp; Diagnostics">
 

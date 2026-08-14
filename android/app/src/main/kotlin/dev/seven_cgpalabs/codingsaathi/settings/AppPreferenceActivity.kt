@@ -49,6 +49,9 @@ class AppPreferenceActivity : AppCompatActivity() {
 
             @JvmStatic external fun nativeGetRecentLogs(maxLines: Int): String
             @JvmStatic external fun nativeIsServerRunning(): Boolean
+            @JvmStatic external fun nativeGetCpuPercent(): Float
+            @JvmStatic external fun nativeGetRamUsedMb(): Long
+            @JvmStatic external fun nativeGetRamTotalMb(): Long
         }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -79,9 +82,13 @@ class AppPreferenceActivity : AppCompatActivity() {
                         intent.action = ServerForegroundService.ACTION_STOP
                         ctx.startService(intent)
                     }
+                    view?.postDelayed({ refreshTelemetry() }, 500)
                     true
                 }
             }
+
+            // ── Live Telemetry ─────────────────────────────────────────────
+            refreshTelemetry()
 
             // ── Re-download models ─────────────────────────────────────────
             findPreference<Preference>("pref_model_redownload")?.setOnPreferenceClickListener {
@@ -131,6 +138,26 @@ class AppPreferenceActivity : AppCompatActivity() {
                 Toast.makeText(ctx, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                 true
             }
+        }
+
+        override fun onResume() {
+            super.onResume()
+            refreshTelemetry()
+        }
+
+        private fun refreshTelemetry() {
+            val running = try { nativeIsServerRunning() } catch (_: Exception) { false }
+            val cpu = try { nativeGetCpuPercent() } catch (_: Exception) { 0f }
+            val ramUsed = try { nativeGetRamUsedMb() } catch (_: Exception) { 0L }
+            val ramTotal = try { nativeGetRamTotalMb() } catch (_: Exception) { 0L }
+
+            findPreference<Preference>("pref_telemetry_status")?.summary =
+                if (running) "🟢 Active (Listening on 0.0.0.0:8080)" else "🔴 Stopped (Offline)"
+            findPreference<Preference>("pref_telemetry_cpu")?.summary =
+                "%.1f%%".format(cpu)
+            findPreference<Preference>("pref_telemetry_ram")?.summary =
+                "$ramUsed / $ramTotal MB"
+            findPreference<SwitchPreferenceCompat>("pref_server_toggle")?.isChecked = running
         }
 
         private fun getDeviceIpAddress(): String {

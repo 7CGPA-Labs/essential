@@ -85,6 +85,45 @@ Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_nativeIsSer
     return Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeIsServerRunning(env, clazz);
 }
 
+JNIEXPORT jfloat JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetCpuPercent(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return t.cpu_percent;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetRamUsedMb(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return static_cast<jlong>(t.ram_used_mb);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_seven_1cgpalabs_codingsaathi_settings_AppPreferenceActivity_00024ServerPreferenceFragment_nativeGetRamTotalMb(
+    JNIEnv* /*env*/, jclass /*clazz*/) {
+    KingdomTelemetry t{};
+    {
+        std::lock_guard<std::mutex> lock(g_engine_mutex);
+        if (g_engine_handle) {
+            kingdom_engine_get_telemetry(g_engine_handle, &t);
+        }
+    }
+    return static_cast<jlong>(t.ram_total_mb);
+}
+
 // ── ServerTelemetryWidget ─────────────────────────────────────────────────────
 
 JNIEXPORT jboolean JNICALL
