@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="Server Configuration">
+        <Preference
+            app:key="model_storage_path"
+            app:title="Model Storage Path"
+            app:summary="Loading..." />
+            
+        <Preference
+            app:key="server_ip_port"
+            app:title="Server IP &amp; Port"
+            app:summary="Loading..." />
+            
+        <androidx.preference.SwitchPreferenceCompat
+            app:key="master_server_switch"
+            app:title="Master Server Switch"
+            app:summary="Start or stop the AI Server" />
+    </PreferenceCategory>
+    
+    <PreferenceCategory app:title="Model Management">
+        <Preference
+            app:key="reverify_models"
+            app:title="Re-verify / Redownload Models"
+            app:summary="Check for missing models and download them" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Diagnostics &amp; Logs">
+        <Preference
+            app:key="process_logs"
+            app:title="Process Logs"
+            app:summary="View recent server logs" />
+            
+        <Preference
+            app:key="export_diagnostics"
+            app:title="Export Diagnostics"
+            app:summary="Share diagnostic logs" />
+            
+        <Preference
+            app:key="adb_command"
+            app:title="ADB Port Forward Command"
+            app:summary="adb forward tcp:8080 tcp:8080" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

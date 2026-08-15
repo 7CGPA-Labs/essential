@@ -1,0 +1,118 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-08-15",
+  "models": [
+    {
+      "id": "llm-main",
+      "name": "Qwen2.5-Coder-1.5B-Instruct",
+      "filename": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "subdirectory": "",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "size_bytes": 1100000000,
+      "format": "gguf",
+      "hardware": "GPU",
+      "role": "Main LLM - Chat Completions",
+      "minister": 0
+    },
+    {
+      "id": "llm-autocomplete",
+      "name": "Granite-Code-128M",
+      "filename": "granite-code-128m-q4_k.gguf",
+      "subdirectory": "",
+      "url": "https://huggingface.co/ibm-granite/granite-code-128m-GGUF/resolve/main/granite-code-128m-q4_k.gguf",
+      "size_bytes": 100000000,
+      "format": "gguf",
+      "hardware": "CPU",
+      "role": "Fast Autocomplete",
+      "minister": 1
+    },
+    {
+      "id": "embeddings",
+      "name": "BGE-Small-EN-v1.5",
+      "filename": "bge-small-en-v1.5.tflite",
+      "subdirectory": "",
+      "url": "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/bge-small-en-v1.5.tflite",
+      "size_bytes": 133000000,
+      "format": "tflite",
+      "hardware": "NPU",
+      "role": "Codebase Embeddings",
+      "minister": 2
+    },
+    {
+      "id": "reranker",
+      "name": "BGE-Reranker-Base",
+      "filename": "bge-reranker-base.onnx",
+      "subdirectory": "",
+      "url": "https://huggingface.co/BAAI/bge-reranker-base/resolve/main/onnx/model.onnx",
+      "size_bytes": 1100000000,
+      "format": "onnx",
+      "hardware": "NPU",
+      "role": "Search Reranking",
+      "minister": 3
+    },
+    {
+      "id": "minister-4",
+      "name": "Whisper-Base",
+      "filename": "whisper-base.tflite",
+      "subdirectory": "",
+      "url": "https://huggingface.co/openai/whisper-base/resolve/main/whisper-base.tflite",
+      "size_bytes": 140000000,
+      "format": "tflite",
+      "hardware": "NPU",
+      "role": "Voice input",
+      "minister": 4
+    },
+    {
+      "id": "minister-5",
+      "name": "Vision-ResNet",
+      "filename": "resnet50.onnx",
+      "subdirectory": "",
+      "url": "https://huggingface.co/microsoft/resnet-50/resolve/main/resnet50.onnx",
+      "size_bytes": 100000000,
+      "format": "onnx",
+      "hardware": "NPU",
+      "role": "Image analysis",
+      "minister": 5,
+      "notes": "Custom ONNX export needed due to specific NPU unsupported ops."
+    },
+    {
+      "id": "minister-6",
+      "name": "Code-Linter-Model",
+      "filename": "code-linter.onnx",
+      "subdirectory": "",
+      "url": "https://example.com/models/code-linter.onnx",
+      "size_bytes": 200000000,
+      "format": "onnx",
+      "hardware": "NPU",
+      "role": "Code Linting",
+      "minister": 6,
+      "notes": "Custom ONNX export needed for custom AST ops."
+    },
+    {
+      "id": "minister-7",
+      "name": "Text-To-Speech",
+      "filename": "vits-tts.onnx",
+      "subdirectory": "",
+      "url": "https://example.com/models/vits-tts.onnx",
+      "size_bytes": 150000000,
+      "format": "onnx",
+      "hardware": "NPU",
+      "role": "Screen reading",
+      "minister": 7,
+      "notes": "Custom ONNX export needed for Android NNAPI compatibility."
+    },
+    {
+      "id": "minister-8",
+      "name": "Context-Summarizer",
+      "filename": "distilbart-cnn-12-6.onnx",
+      "subdirectory": "",
+      "url": "https://huggingface.co/sshleifer/distilbart-cnn-12-6/resolve/main/onnx/model.onnx",
+      "size_bytes": 250000000,
+      "format": "onnx",
+      "hardware": "NPU",
+      "role": "Context compression",
+      "minister": 8,
+      "notes": "Custom ONNX export needed for dynamic shape handling."
+    }
+  ]
+}

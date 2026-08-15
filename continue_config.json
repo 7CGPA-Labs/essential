@@ -1,0 +1,52 @@
+{
+  "$schema": "https://continue.dev/schemas/config.json",
+  "models": [
+    {
+      "title": "🏰 Kingdom AI — Chat (Qwen2.5-Coder 1.5B)",
+      "provider": "openai",
+      "model": "qwen2.5-coder-1.5b",
+      "apiBase": "http://localhost:8080/v1",
+      "apiKey": "kingdom-local",
+      "contextLength": 4096,
+      "completionOptions": {
+        "maxTokens": 1024,
+        "temperature": 0.75,
+        "topP": 0.95
+      }
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "🏰 Kingdom AI — Autocomplete (Granite 128M)",
+    "provider": "openai",
+    "model": "granite-code-128m",
+    "apiBase": "http://localhost:8080/v1",
+    "apiKey": "kingdom-local"
+  },
+  "embeddingsProvider": {
+    "provider": "openai",
+    "model": "bge-small-en-v1.5",
+    "apiBase": "http://localhost:8080/v1",
+    "apiKey": "kingdom-local",
+    "maxBatchSize": 16
+  },
+  "reranker": {
+    "name": "http",
+    "params": {
+      "url": "http://localhost:8080/v1/rerank",
+      "apiKey": "kingdom-local"
+    }
+  },
+  "slashCommands": [
+    {"name": "edit", "description": "Edit code in place"},
+    {"name": "comment", "description": "Add comments to code"},
+    {"name": "share", "description": "Share selected code"}
+  ],
+  "contextProviders": [
+    {"name": "code"},
+    {"name": "docs"},
+    {"name": "diff"},
+    {"name": "terminal"},
+    {"name": "open"},
+    {"name": "codebase"}
+  ]
+}

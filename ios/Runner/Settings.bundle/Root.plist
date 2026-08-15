@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>StringsTable</key>
+    <string>Root</string>
+    <key>PreferenceSpecifiers</key>
+    <array>
+        <!-- Group: Server Configuration -->
+        <dict><key>Type</key><string>PSGroupSpecifier</string><key>Title</key><string>Server Configuration</string></dict>
+        
+        <!-- Model Storage Path (read-only text field) -->
+        <dict>
+            <key>Type</key><string>PSTextFieldSpecifier</string>
+            <key>Title</key><string>Model Storage Location</string>
+            <key>Key</key><string>model_storage_path</string>
+            <key>DefaultValue</key><string>/var/mobile/Containers/Data/Application/.../Documents/models</string>
+            <key>IsSecure</key><false/>
+            <key>KeyboardType</key><string>Alphabet</string>
+        </dict>
+        
+        <!-- Server IP/Port read-only -->
+        <dict><key>Type</key><string>PSTextFieldSpecifier</string><key>Title</key><string>Server IP:Port</string><key>Key</key><string>server_ip_port</string><key>DefaultValue</key><string>http://127.0.0.1:8080</string></dict>
+        
+        <!-- Master toggle -->
+        <dict><key>Type</key><string>PSToggleSwitchSpecifier</string><key>Title</key><string>AI Server (Master Switch)</string><key>Key</key><string>server_enabled</string><key>DefaultValue</key><false/></dict>
+        
+        <!-- Group: Model Management -->
+        <dict><key>Type</key><string>PSGroupSpecifier</string><key>Title</key><string>Model Management</string></dict>
+        <dict><key>Type</key><string>PSTextFieldSpecifier</string><key>Title</key><string>LLM Model Filename</string><key>Key</key><string>llm_filename</string><key>DefaultValue</key><string>qwen2.5-coder-1.5b-instruct-q4_k_m.gguf</string></dict>
+        
+        <!-- Group: Diagnostics -->
+        <dict><key>Type</key><string>PSGroupSpecifier</string><key>Title</key><string>Diagnostics</string></dict>
+        <dict><key>Type</key><string>PSTextFieldSpecifier</string><key>Title</key><string>ADB Forward Command</string><key>Key</key><string>adb_command</string><key>DefaultValue</key><string>iproxy 8080 8080 &amp; (USB) or use Wi-Fi IP directly</string><key>IsSecure</key><false/></dict>
+        
+        <!-- App version display -->
+        <dict><key>Type</key><string>PSTitleValueSpecifier</string><key>Title</key><string>Version</string><key>Key</key><string>app_version</string><key>DefaultValue</key><string>1.0.0</string></dict>
+    </array>
+</dict>
+</plist>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kingdom AI Server</string>
+    <string name="widget_description">On-device AI server telemetry and control</string>
+    <string name="pref_model_path_title">Model Storage Location</string>
+    <string name="pref_server_ip_title">Server IP &amp; Port</string>
+    <string name="pref_master_switch_title">AI Server (Master Switch)</string>
+    <string name="pref_master_switch_summary_on">Server is running on port 8080</string>
+    <string name="pref_master_switch_summary_off">Tap to start the AI server</string>
+    <string name="pref_reverify_title">Re-verify / Redownload Models</string>
+    <string name="pref_logs_title">Process Logs</string>
+    <string name="pref_export_title">Export Diagnostics</string>
+    <string name="pref_adb_title">ADB Port Forward Command</string>
+    <string name="pref_adb_summary">adb forward tcp:8080 tcp:8080</string>
+    <string name="notification_channel_name">AI Server Status</string>
+    <string name="notification_server_active">🟢 AI Server: Active | 8080</string>
+    <string name="notification_server_stopped">🔴 AI Server: Stopped</string>
+</resources>
