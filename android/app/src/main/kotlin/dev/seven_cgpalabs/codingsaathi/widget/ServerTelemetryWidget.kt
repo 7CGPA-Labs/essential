@@ -9,22 +9,26 @@ import android.content.Intent
 import android.widget.RemoteViews
 import dev.seven_cgpalabs.codingsaathi.R
 import dev.seven_cgpalabs.codingsaathi.service.ServerForegroundService
+import dev.seven_cgpalabs.codingsaathi.settings.AppPreferenceActivity
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 /**
  * ServerTelemetryWidget
  *
- * Interactive home screen widget (AppWidgetProvider) displaying:
- *   - Server IP Address / URL (http://127.0.0.1:8080)
- *   - Live Telemetry Gauges: CPU %, RAM (MB), GPU %, VRAM (MB), NPU Latency (ms)
+ * Interactive, high-density glassmorphism home screen widget displaying:
+ *   - Live Wi-Fi IP Address (e.g. http://192.168.150.101:8080)
+ *   - 2x2 Telemetry Grid: CPU %, GPU %, NPU %, System RAM (GB)
  *   - Interactive [ START / STOP ] toggle button
+ *   - Interactive [ Chat / Settings ] launcher button
  */
 class ServerTelemetryWidget : AppWidgetProvider() {
 
     companion object {
-        private const val ACTION_TOGGLE = "dev.seven_cgpalabs.codingsaathi.WIDGET_TOGGLE"
+        const val ACTION_TOGGLE = "dev.seven_cgpalabs.codingsaathi.WIDGET_TOGGLE"
 
         init {
-            System.loadLibrary("essential_native")
+            dev.seven_cgpalabs.codingsaathi.NativeLibLoader.loadLibraries()
         }
 
         @JvmStatic private external fun nativeIsServerRunning(): Boolean
@@ -33,19 +37,40 @@ class ServerTelemetryWidget : AppWidgetProvider() {
         @JvmStatic private external fun nativeGetRamTotalMb(): Long
         @JvmStatic private external fun nativeGetGpuPercent(): Float
         @JvmStatic private external fun nativeGetNpuPercent(): Float
-        @JvmStatic private external fun nativeGetNpuLatencyMs(): Float
 
         /**
-         * Trigger a widget refresh from any context (e.g. after server state change).
+         * Trigger an immediate widget refresh from any service or activity.
          */
         fun refresh(context: Context) {
-            val intent = Intent(context, ServerTelemetryWidget::class.java).apply {
-                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            }
-            val ids = AppWidgetManager.getInstance(context)
-                .getAppWidgetIds(ComponentName(context, ServerTelemetryWidget::class.java))
-            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-            context.sendBroadcast(intent)
+            try {
+                val intent = Intent(context, ServerTelemetryWidget::class.java).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                }
+                val manager = AppWidgetManager.getInstance(context) ?: return
+                val ids = manager.getAppWidgetIds(ComponentName(context, ServerTelemetryWidget::class.java))
+                if (ids != null && ids.isNotEmpty()) {
+                    intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                    context.sendBroadcast(intent)
+                }
+            } catch (_: Throwable) {}
+        }
+
+        private fun getDeviceIpAddress(): String {
+            try {
+                val interfaces = NetworkInterface.getNetworkInterfaces()
+                while (interfaces.hasMoreElements()) {
+                    val iface = interfaces.nextElement()
+                    if (iface.isLoopback || !iface.isUp) continue
+                    val addrs = iface.inetAddresses
+                    while (addrs.hasMoreElements()) {
+                        val addr = addrs.nextElement()
+                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                            return addr.hostAddress ?: "127.0.0.1"
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
+            return "127.0.0.1"
         }
     }
 
@@ -71,7 +96,6 @@ class ServerTelemetryWidget : AppWidgetProvider() {
             } else {
                 context.startService(serviceIntent)
             }
-            // Refresh widgets
             refresh(context)
         }
     }
@@ -79,42 +103,62 @@ class ServerTelemetryWidget : AppWidgetProvider() {
     private fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.widget_server_telemetry)
 
-        // Read telemetry from native
+        // Read real-time telemetry from native orchestrator
         val running = try { nativeIsServerRunning() } catch (_: Exception) { false }
         val cpu = try { nativeGetCpuPercent() } catch (_: Exception) { 0f }
         val ramUsed = try { nativeGetRamUsedMb() } catch (_: Exception) { 0L }
         val ramTotal = try { nativeGetRamTotalMb() } catch (_: Exception) { 0L }
         val gpu = try { nativeGetGpuPercent() } catch (_: Exception) { 0f }
         val npu = try { nativeGetNpuPercent() } catch (_: Exception) { 0f }
+        val ip = getDeviceIpAddress()
 
-        // Server URL
-        views.setTextViewText(R.id.widget_ip_address,
-            if (running) "http://127.0.0.1:8080" else "Server Offline")
+        // ── 1. Status & IP Banner ──────────────────────────────────────────
+        views.setTextViewText(
+            R.id.widget_status,
+            if (running) "🟢 Active (8080)" else "🔴 Stopped"
+        )
+        views.setTextColor(
+            R.id.widget_status,
+            if (running) 0xFF34D399.toInt() else 0xFFF87171.toInt()
+        )
+        views.setTextViewText(
+            R.id.widget_ip_address,
+            if (running) "📡 http://$ip:8080" else "📡 Server Offline"
+        )
 
-        // Status indicator
-        views.setTextViewText(R.id.widget_status,
-            if (running) "🟢 Active" else "🔴 Stopped")
+        // ── 2. 2x2 Telemetry Cards ─────────────────────────────────────────
+        views.setTextViewText(R.id.widget_cpu, "%.1f%%".format(cpu))
+        views.setTextViewText(R.id.widget_gpu, "%.1f%%".format(gpu))
+        views.setTextViewText(R.id.widget_npu, "%.0f%%".format(npu))
+        val ramUsedGb = ramUsed / 1024.0
+        val ramTotalGb = ramTotal / 1024.0
+        views.setTextViewText(R.id.widget_ram, "%.1f/%.1f GB".format(ramUsedGb, ramTotalGb))
 
-        // Telemetry gauges row 1: CPU & RAM
-        views.setTextViewText(R.id.widget_cpu, "CPU: ${"%.1f".format(cpu)}%")
-        views.setTextViewText(R.id.widget_ram, "RAM: ${ramUsed}/${ramTotal} MB")
+        // ── 3. Interactive Buttons ─────────────────────────────────────────
+        views.setTextViewText(
+            R.id.widget_toggle_btn,
+            if (running) "⏹ STOP" else "▶ START"
+        )
 
-        // Telemetry gauges row 2: GPU & NPU
-        views.setTextViewText(R.id.widget_gpu, "GPU: ${"%.1f".format(gpu)}%")
-        views.setTextViewText(R.id.widget_npu, "NPU: ${"%.0f".format(npu)}%")
-
-        // Toggle button
-        views.setTextViewText(R.id.widget_toggle_btn,
-            if (running) "⏹ STOP" else "▶ START")
-
+        // Start/Stop toggle PendingIntent
         val toggleIntent = Intent(context, ServerTelemetryWidget::class.java).apply {
             action = ACTION_TOGGLE
         }
         val togglePending = PendingIntent.getBroadcast(
-            context, 0, toggleIntent,
+            context, widgetId * 10 + 1, toggleIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_toggle_btn, togglePending)
+
+        // Open Chat / Settings Activity PendingIntent
+        val chatIntent = Intent(context, AppPreferenceActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val chatPending = PendingIntent.getActivity(
+            context, widgetId * 10 + 2, chatIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_open_chat_btn, chatPending)
 
         manager.updateAppWidget(widgetId, views)
     }

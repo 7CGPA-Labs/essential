@@ -1,35 +1,31 @@
 package dev.seven_cgpalabs.codingsaathi.model
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
  * ModelAssetManager
  *
  * Checks local storage for all 9 model files and downloads missing assets
- * via background HTTPS downloader.
- *
- * Expected models (inside Context.getFilesDir()/models/):
- *   1. qwen2.5-coder-1.5b-q4_k_m.gguf   (~900 MB) – GPU LLM
- *   2. all_minilm_l6_v2.onnx              (~25 MB)  – Minister 1 Intent Router
- *   3. bge_small_en_v1_5.onnx             (~60 MB)  – Minister 2 Embedder
- *   4. bge_reranker_base.onnx             (~110 MB) – Minister 3 Re-Ranker
- *   5. codeberta.onnx                     (~125 MB) – Minister 4 Code Parser
- *   6. granite_code_128m.onnx             (~130 MB) – Minister 5 Autocomplete
- *   7. nli_deberta_v3_small.onnx          (~90 MB)  – Minister 6 Fact Checker
- *   8. codebert_vulnerability.onnx        (~125 MB) – Minister 7 Security
- *   9. mobile_diffusion_lcm.onnx          (~280 MB) – Minister 8 Diagram Gen
+ * via resilient background HTTPS downloader with redirect tracking and live progress.
  */
 class ModelAssetManager(private val context: Context) {
 
     companion object {
         private const val TAG = "ModelAssetManager"
         private const val MODELS_DIR = "models"
+        private const val DOWNLOAD_CHANNEL_ID = "model_download_channel"
+        private const val DOWNLOAD_NOTIF_ID = 2002
 
         data class ModelSpec(
             val filename: String,
@@ -37,6 +33,7 @@ class ModelAssetManager(private val context: Context) {
             val minSizeBytes: Long
         )
 
+<<<<<<< HEAD
         val MODEL_REGISTRY = listOf(
             ModelSpec("qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
                 "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
@@ -69,50 +66,62 @@ class ModelAssetManager(private val context: Context) {
 
         /** Model manifest: filename → expected minimum size in bytes. */
         val MODEL_MANIFEST = MODEL_REGISTRY.associate { it.filename to it.minSizeBytes }
+=======
+        /** Direct CDN/HuggingFace download URLs for all 9 models. */
+        val MODEL_URL_MAP = mapOf(
+            "qwen2.5-coder-1.5b-q4_k_m.gguf" to "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+            "all_minilm_l6_v2.onnx"           to "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/model.onnx",
+            "bge_small_en_v1_5.onnx"          to "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx",
+            "bge_reranker_base.onnx"          to "https://huggingface.co/BAAI/bge-reranker-base/resolve/main/onnx/model.onnx",
+            "codeberta.onnx"                  to "https://huggingface.co/huggingface/CodeBERTa-small-v1/resolve/main/onnx/model.onnx",
+            "granite_code_128m.onnx"          to "https://huggingface.co/ibm-granite/granite-3b-code-base/resolve/main/onnx/model.onnx",
+            "nli_deberta_v3_small.onnx"       to "https://huggingface.co/cross-encoder/nli-deberta-v3-small/resolve/main/onnx/model.onnx",
+            "codebert_vulnerability.onnx"     to "https://huggingface.co/mrm8488/codebert-base-finetuned-detect-insecure-code/resolve/main/onnx/model.onnx",
+            "mobile_diffusion_lcm.onnx"       to "https://huggingface.co/google/mobilediffusion/resolve/main/model.onnx",
+        )
+
+        val downloadProgress = ConcurrentHashMap<String, Int>()
+        var isDownloading = false
+            private set
+>>>>>>> 997efa4 (feat(widget): Revamp ServerTelemetryWidget with enhanced UI and functionality)
     }
 
     data class ModelStatus(
         val filename: String,
         val present: Boolean,
-        val sizeBytes: Long
+        val sizeBytes: Long,
+        val progressPercent: Int
     )
 
     private val modelsDir: File
         get() = File(context.filesDir, MODELS_DIR).also { it.mkdirs() }
 
-    private val executor = Executors.newSingleThreadExecutor()
+    private val executor = Executors.newFixedThreadPool(2)
 
-    /**
-     * Returns the status of every expected model file.
-     */
+    init {
+        createNotificationChannel()
+    }
+
     fun checkAllModels(): List<ModelStatus> {
         return MODEL_MANIFEST.map { (filename, minSize) ->
             val file = File(modelsDir, filename)
+            val isPresent = file.exists() && file.length() >= minSize
+            val prog = if (isPresent) 100 else (downloadProgress[filename] ?: 0)
             ModelStatus(
                 filename = filename,
-                present = file.exists() && file.length() >= minSize,
-                sizeBytes = if (file.exists()) file.length() else 0L
+                present = isPresent,
+                sizeBytes = if (file.exists()) file.length() else 0L,
+                progressPercent = prog
             )
         }
     }
 
-    /**
-     * Returns the list of model filenames that are missing or corrupt.
-     */
     fun missingModels(): List<String> {
         return checkAllModels().filter { !it.present }.map { it.filename }
     }
 
-    /**
-     * Returns true if all 9 models are present and valid.
-     */
     fun allModelsReady(): Boolean = missingModels().isEmpty()
 
-    /**
-     * Verify all models and trigger background download for any missing ones.
-     * Downloads are no-ops if a download URL registry is not configured;
-     * in production this would read from a manifest JSON hosted on your CDN.
-     */
     fun verifyAndDownloadMissing() {
         val missing = missingModels()
         if (missing.isEmpty()) {
@@ -120,26 +129,25 @@ class ModelAssetManager(private val context: Context) {
             return
         }
 
-        Log.i(TAG, "${missing.size} model(s) missing: $missing")
+        Log.i(TAG, "Starting download for ${missing.size} missing model(s): $missing")
+        isDownloading = true
+
         for (filename in missing) {
+            val url = MODEL_URL_MAP[filename] ?: continue
             executor.submit {
-                downloadModel(filename)
+                downloadModel(filename, url)
             }
         }
     }
 
-    /**
-     * Get the absolute path to the models directory.
-     */
     fun modelsDirectoryPath(): String = modelsDir.absolutePath
-
-    /**
-     * Get the absolute path to a specific model file.
-     */
     fun modelPath(filename: String): String = File(modelsDir, filename).absolutePath
 
-    // ── Private download helper ────────────────────────────────────────────
+    private fun downloadModel(filename: String, urlString: String) {
+        val dest = File(modelsDir, filename)
+        val tempDest = File(modelsDir, "$filename.tmp")
 
+<<<<<<< HEAD
     private fun downloadModel(filename: String) {
         val spec = MODEL_REGISTRY.find { it.filename == filename }
         if (spec != null) {
@@ -152,32 +160,129 @@ class ModelAssetManager(private val context: Context) {
 
     @Suppress("unused")
     private fun downloadFile(urlString: String, dest: File) {
+=======
+>>>>>>> 997efa4 (feat(widget): Revamp ServerTelemetryWidget with enhanced UI and functionality)
         try {
-            Log.i(TAG, "Downloading $urlString → ${dest.absolutePath}")
-            val url = URL(urlString)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 30_000
-            conn.readTimeout = 60_000
-            conn.requestMethod = "GET"
+            Log.i(TAG, "Downloading $filename from $urlString")
+            updateNotification("Downloading $filename...", 0)
 
-            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                conn.inputStream.use { input ->
-                    FileOutputStream(dest).use { output ->
-                        val buffer = ByteArray(8192)
-                        var read: Int
-                        while (input.read(buffer).also { read = it } != -1) {
-                            output.write(buffer, 0, read)
+            var currentUrl = urlString
+            var connection: HttpURLConnection? = null
+            var redirects = 0
+            val maxRedirects = 6
+
+            while (redirects < maxRedirects) {
+                val url = URL(currentUrl)
+                connection = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 30_000
+                    readTimeout = 60_000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "CodingSaathi-AI/1.0 (Android; POCO F6)")
+                }
+
+                val status = connection.responseCode
+                if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
+                    status == HttpURLConnection.HTTP_MOVED_PERM ||
+                    status == HttpURLConnection.HTTP_SEE_OTHER ||
+                    status == 307 || status == 308) {
+                    val newUrl = connection.getHeaderField("Location")
+                    connection.disconnect()
+                    if (newUrl != null) {
+                        currentUrl = newUrl
+                        redirects++
+                        continue
+                    }
+                }
+                break
+            }
+
+            if (connection == null || connection.responseCode != HttpURLConnection.HTTP_OK) {
+                Log.e(TAG, "Failed downloading $filename (HTTP ${connection?.responseCode})")
+                return
+            }
+
+            val totalBytes = connection.contentLengthLong
+            var downloadedBytes = 0L
+
+            connection.inputStream.use { input ->
+                FileOutputStream(tempDest).use { output ->
+                    val buffer = ByteArray(65536)
+                    var read: Int
+                    var lastNotifTime = 0L
+
+                    while (input.read(buffer).also { read = it } != -1) {
+                        output.write(buffer, 0, read)
+                        downloadedBytes += read
+
+                        if (totalBytes > 0) {
+                            val percent = ((downloadedBytes * 100) / totalBytes).toInt()
+                            downloadProgress[filename] = percent
+
+                            val now = System.currentTimeMillis()
+                            if (now - lastNotifTime > 1500) {
+                                lastNotifTime = now
+                                updateNotification("Downloading $filename ($percent%)", percent)
+                            }
                         }
                     }
                 }
-                Log.i(TAG, "Downloaded: ${dest.name} (${dest.length()} bytes)")
-            } else {
-                Log.e(TAG, "HTTP ${conn.responseCode} for $urlString")
             }
-            conn.disconnect()
+
+            if (tempDest.renameTo(dest)) {
+                downloadProgress[filename] = 100
+                Log.i(TAG, "Successfully downloaded $filename (${dest.length()} bytes)")
+                updateNotification("Downloaded $filename", 100)
+            } else {
+                Log.e(TAG, "Failed renaming $tempDest to $dest")
+            }
+
+            connection.disconnect()
+
         } catch (e: Exception) {
-            Log.e(TAG, "Download failed: ${e.message}", e)
-            if (dest.exists()) dest.delete()
+            Log.e(TAG, "Error downloading $filename: ${e.message}", e)
+            if (tempDest.exists()) tempDest.delete()
+        } finally {
+            if (missingModels().isEmpty()) {
+                isDownloading = false
+                cancelNotification()
+            }
         }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                DOWNLOAD_CHANNEL_ID,
+                "Model Downloads",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows model asset download progress"
+                setShowBadge(false)
+            }
+            val nm = context.getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    private fun updateNotification(title: String, progress: Int) {
+        try {
+            val notif = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setContentTitle("CodingSaathi AI Model Downloader")
+                .setContentText(title)
+                .setProgress(100, progress, progress <= 0)
+                .setOngoing(true)
+                .build()
+
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(DOWNLOAD_NOTIF_ID, notif)
+        } catch (_: Exception) {}
+    }
+
+    private fun cancelNotification() {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(DOWNLOAD_NOTIF_ID)
+        } catch (_: Exception) {}
     }
 }

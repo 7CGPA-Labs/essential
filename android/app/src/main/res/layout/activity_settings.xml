@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_settings_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0F172A"
+    android:fitsSystemWindows="true">
+
+    <!-- Sleek Dark Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/settings_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:background="#1E293B"
+        android:elevation="4dp"
+        app:title="CodingSaathi AI"
+        app:titleTextColor="#F8FAFC"
+        app:subtitle="POCO F6 • Snapdragon 8s Gen 3 • Adreno OpenCL"
+        app:subtitleTextColor="#38BDF8" />
+
+    <!-- Container for Preferences Fragment with proper padding -->
+    <FrameLayout
+        android:id="@+id/settings_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+</LinearLayout>

@@ -20,7 +20,9 @@ class KingdomApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "Kingdom AI Server process initializing...")
+        NativeLibLoader.loadLibraries(this)
         // Maintain and download missing model assets on startup
         ModelAssetManager(this).verifyAndDownloadMissing()
     }
 }
+

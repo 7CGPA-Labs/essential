@@ -42,6 +42,11 @@ else()
     target_link_libraries(sqlite3_local INTERFACE -lsqlite3)
 endif()
 
+# ── OpenCL dynamic ICD loader for Android ─────────────────────────────────────
+add_library(OpenCL SHARED opencl_loader.cpp)
+set_target_properties(OpenCL PROPERTIES OUTPUT_NAME "OpenCL")
+target_link_libraries(OpenCL log dl)
+
 # ── Main FFI shared library ────────────────────────────────────────────────────
 add_library(essential_native SHARED
     llama_wrapper.cpp
@@ -66,6 +71,7 @@ target_include_directories(essential_native PRIVATE
 target_link_libraries(essential_native
     android
     log
+    OpenCL
     libomp
     libllama
     libggml
@@ -76,6 +82,7 @@ target_link_libraries(essential_native
     sqlite3_local
 )
 
+<<<<<<< HEAD
 target_compile_options(essential_native PRIVATE
     -O3
     -ffast-math
@@ -88,3 +95,5 @@ target_compile_definitions(essential_native PRIVATE
     SQLITE_THREADSAFE=2
     SQLITE_DEFAULT_WAL_AUTOCHECKPOINT=100
 )
+=======
+>>>>>>> 997efa4 (feat(widget): Revamp ServerTelemetryWidget with enhanced UI and functionality)

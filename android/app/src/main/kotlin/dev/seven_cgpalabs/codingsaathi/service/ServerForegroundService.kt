@@ -28,7 +28,7 @@ class ServerForegroundService : Service() {
         const val ACTION_STOP  = "dev.seven_cgpalabs.codingsaathi.ACTION_STOP_SERVER"
 
         init {
-            System.loadLibrary("essential_native")
+            dev.seven_cgpalabs.codingsaathi.NativeLibLoader.loadLibraries()
         }
 
         @JvmStatic private external fun nativeStartServer(storagePath: String, port: Int)
@@ -60,19 +60,52 @@ class ServerForegroundService : Service() {
         super.onDestroy()
     }
 
+    private val widgetHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val widgetRunnable = object : Runnable {
+        override fun run() {
+            if (nativeIsServerRunning()) {
+                dev.seven_cgpalabs.codingsaathi.widget.ServerTelemetryWidget.refresh(this@ServerForegroundService)
+                widgetHandler.postDelayed(this, 2000)
+            }
+        }
+    }
+
     // ── Server lifecycle ───────────────────────────────────────────────────
 
     private fun startServer() {
         Log.i(TAG, "Starting Kingdom AI Server…")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(running = true),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification(running = true))
+        }
         val storagePath = filesDir.absolutePath
-        nativeStartServer(storagePath, 8080)
-        startForeground(NOTIFICATION_ID, buildNotification(running = true))
-        Log.i(TAG, "Server started on port 8080")
+        Thread {
+            try {
+                nativeStartServer(storagePath, 8080)
+                Log.i(TAG, "Server started on port 8080")
+                widgetHandler.post(widgetRunnable)
+            } catch (e: Throwable) {
+                Log.e(TAG, "Error starting server: ${e.message}", e)
+            }
+        }.start()
     }
 
     private fun stopServer() {
         Log.i(TAG, "Stopping Kingdom AI Server…")
-        nativeStopServer()
+        widgetHandler.removeCallbacks(widgetRunnable)
+        Thread {
+            try {
+                nativeStopServer()
+                dev.seven_cgpalabs.codingsaathi.widget.ServerTelemetryWidget.refresh(this@ServerForegroundService)
+            } catch (e: Throwable) {
+                Log.e(TAG, "Error stopping server: ${e.message}", e)
+            }
+        }.start()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         Log.i(TAG, "Server stopped")

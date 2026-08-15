@@ -44,6 +44,24 @@
 
     </PreferenceCategory>
 
+    <!-- AI Profile & In-App Chat -->
+    <PreferenceCategory android:title="AI Inference &amp; Chat Profile">
+
+        <SwitchPreferenceCompat
+            android:key="pref_dev_profile"
+            android:title="Development / Coding Profile"
+            android:summary="Strict AST syntax, low temperature (0.2), and diff synthesis for Continue.dev"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="pref_launch_chat"
+            android:title="Open On-Device AI Chat"
+            android:summary="Interactive test console with in-chat Development Profile toggle"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
     <!-- Live Telemetry -->
     <PreferenceCategory android:title="Live System Telemetry">
 
@@ -76,16 +94,9 @@
             app:iconSpaceReserved="false" />
 
         <Preference
-            android:key="pref_telemetry_vram"
-            android:title="GPU VRAM Allocated"
-            android:summary="0 / 0 MB"
-            android:selectable="false"
-            app:iconSpaceReserved="false" />
-
-        <Preference
             android:key="pref_telemetry_npu"
-            android:title="NPU Sidecar Latency"
-            android:summary="0.0 ms"
+            android:title="NPU Sidecar Load"
+            android:summary="0.0%"
             android:selectable="false"
             app:iconSpaceReserved="false" />
 

@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -14,8 +15,8 @@ android {
     }
 
     buildFeatures {
-        // Required for CMake to consume ONNX Runtime headers and .so from the AAR
         prefab = true
+        viewBinding = true
     }
 
     defaultConfig {
@@ -26,7 +27,6 @@ android {
         versionName = "1.0.0"
 
         ndk {
-            //noinspection ChromeOsAbiSupport
             abiFilters.clear()
             abiFilters.add("arm64-v8a")
         }
@@ -47,6 +47,7 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -60,17 +61,11 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-
-    // ONNX Runtime Android — provides libonnxruntime.so (arm64) and C++ headers
-    // via the prefab mechanism. CMake links against onnxruntime::onnxruntime.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
-
-    // AndroidX Preference for System Settings UI (PreferenceFragmentCompat)
     implementation("androidx.preference:preference-ktx:1.2.1")
-
-    // AndroidX AppCompat for AppPreferenceActivity
     implementation("androidx.appcompat:appcompat:1.7.0")
-
-    // FileProvider for log sharing
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("io.noties.markwon:core:4.6.2")
+    implementation("io.noties.markwon:ext-tables:4.6.2")
 }

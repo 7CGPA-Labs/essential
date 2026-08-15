@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/dialog_chat_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0F172A"
+    android:fitsSystemWindows="true"
+    android:padding="12dp">
+
+    <!-- Top Floating Glassmorphic Telemetry HUD -->
+    <LinearLayout
+        android:id="@+id/chat_telemetry_hud"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="#1E293B"
+        android:paddingVertical="8dp"
+        android:paddingHorizontal="12dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/hud_cpu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ CPU 14%"
+            android:textColor="#22D3EE"
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:typeface="monospace" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="14dp"
+            android:layout_marginHorizontal="12dp"
+            android:background="#334155" />
+
+        <TextView
+            android:id="@+id/hud_gpu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎮 GPU 18%"
+            android:textColor="#D8B4FE"
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:typeface="monospace" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="14dp"
+            android:layout_marginHorizontal="12dp"
+            android:background="#334155" />
+
+        <TextView
+            android:id="@+id/hud_npu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🧠 NPU 88%"
+            android:textColor="#34D399"
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:typeface="monospace" />
+    </LinearLayout>
+
+    <!-- In-Chat Profile Switch Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#182234"
+        android:padding="10dp"
+        android:layout_marginBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/chat_profile_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🛠️ Development Profile"
+                android:textColor="#38BDF8"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/chat_profile_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Low Temp (0.2) • Senior Pair-Programmer &amp; Diffs Mode"
+                android:textColor="#94A3B8"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/chat_profile_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true" />
+    </LinearLayout>
+
+    <!-- Chat Message History -->
+    <ScrollView
+        android:id="@+id/chat_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#090D16"
+        android:padding="10dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/chat_output"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#E2E8F0"
+            android:textSize="13.5sp"
+            android:typeface="monospace"
+            android:text="🟢 CodingSaathi AI Server ready.\nAsk any technical question, algorithm, debugging, or system design problem.\n\n" />
+    </ScrollView>
+
+    <!-- Bottom Input Controls (Pinned above keyboard) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <EditText
+            android:id="@+id/chat_input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minHeight="48dp"
+            android:background="#1E293B"
+            android:textColor="#F8FAFC"
+            android:textColorHint="#64748B"
+            android:hint="Ask CodingSaathi AI..."
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="10dp"
+            android:textSize="14sp"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLines="4" />
+
+        <Button
+            android:id="@+id/chat_send_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#0284C7"
+            android:text="Send"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+</LinearLayout>
