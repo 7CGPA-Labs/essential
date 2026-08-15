@@ -5,12 +5,10 @@
 *.swp
 .DS_Store
 .atom/
-.build/
 .buildlog/
 .history
 .svn/
 .swiftpm/
-migrate_working_dir/
 
 # IDE files
 *.iml
@@ -19,32 +17,50 @@ migrate_working_dir/
 .idea/
 .vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+# Android Gradle build artifacts
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/captures/
+/android/local.properties
+/android/key.properties
+
+# Android CMake / NDK build artifacts
+**/.cxx/
+**/.externalNativeBuild/
+
+# iOS / Xcode build artifacts
+ios/build/
+ios/Pods/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+ios/Flutter/ephemeral/
+DerivedData/
+*.xcuserstate
+
+# Large AI model weights (never commit to git)
+*.onnx
+*.gguf
+*.bin
+*.pt
+*.pth
+
+# Native build output
+*.so
+*.a
+*.apk
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SQLite bundled amalgamation (downloaded via script)
+android/app/src/main/cpp/sqlite/
 
 # Symbolication & obfuscation
 app.*.symbols
 app.*.map.json
 
-# Android Studio & Gradle build artifacts
-/android/app/debug
-/android/app/profile
-/android/app/release
-/android/.gradle
-/android/captures
-
-# Native CMake, C++ build & Large AI Model Weights
-.cxx/
-.externalNativeBuild/
-models/
-*.onnx
-*.gguf
-*.so
-*.apk
+# macOS
+*.DS_Store
+__MACOSX/

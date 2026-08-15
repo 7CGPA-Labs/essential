@@ -10,6 +10,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ============================================================
 add_library(essential_native SHARED
     logger.cpp
+    sqlite/sqlite3.c
     cognitive_vault.cpp
     llama_wrapper.cpp
     sidecar_engine.cpp
@@ -24,6 +25,7 @@ add_library(essential_native SHARED
 # ============================================================
 target_include_directories(essential_native PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/sqlite
     ${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime_include
     $ENV{LOCALAPPDATA}/Android/llama.cpp-src/include
     $ENV{LOCALAPPDATA}/Android/llama.cpp-src/ggml/include
@@ -51,9 +53,8 @@ foreach(lib IN ITEMS llama ggml ggml_base ggml_cpu ggml_opencl omp onnxruntime)
 endforeach()
 
 # ============================================================
-# SQLite3 (bundled source — no external dep needed)
+# Linked libraries
 # ============================================================
-# We use the system SQLite from Android NDK:
 target_link_libraries(essential_native PRIVATE
     android
     log
@@ -77,33 +78,7 @@ target_compile_options(essential_native PRIVATE
     -DGGML_USE_OPENCL
 )
 
-# ============================================================
-# Notes on sqlite3 + sqlite-vec:
-# Include sqlite3.c and sqlite_vec.c directly in the build.
-# Download from:
-#   https://www.sqlite.org/download.html (amalgamation)
-#   https://github.com/asg017/sqlite-vec/releases (sqlite-vec.h + sqlite_vec.c)
-# Place them in: android/app/src/main/cpp/sqlite/
-# Then add to add_library sources above and enable DSQLITE_VEC below.
-#
-# For now, cognitive_vault.cpp uses a placeholder sqlite3.h from NDK path.
-# NDK includes SQLite3 headers; link against -lsqlite3 if available, else
-# include amalgamation source.
-# ============================================================
-find_library(SQLITE3_LIB sqlite3)
-if(SQLITE3_LIB)
-    target_link_libraries(essential_native PRIVATE ${SQLITE3_LIB})
-    message(STATUS "[Kingdom] Found system SQLite3: ${SQLITE3_LIB}")
-else()
-    # Fall back to compiling bundled amalgamation if present
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sqlite/sqlite3.c)
-        target_sources(essential_native PRIVATE
-            sqlite/sqlite3.c
-        )
-        target_include_directories(essential_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sqlite)
-        target_compile_definitions(essential_native PRIVATE SQLITE_THREADSAFE=2 SQLITE_DEFAULT_WAL_AUTOCHECKPOINT=100)
-        message(STATUS "[Kingdom] Using bundled SQLite3 amalgamation")
-    else()
-        message(WARNING "[Kingdom] SQLite3 not found. Run: scripts/download_sqlite.sh")
-    endif()
-endif()
+target_compile_definitions(essential_native PRIVATE
+    SQLITE_THREADSAFE=2
+    SQLITE_DEFAULT_WAL_AUTOCHECKPOINT=100
+)

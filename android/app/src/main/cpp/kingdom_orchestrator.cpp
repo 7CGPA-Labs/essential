@@ -3,7 +3,8 @@
 #include "cognitive_vault.h"
 #include "llama_wrapper.h"
 #include "sidecar_c_api.h"
-#include "native_server.h" // Providing FormatOpenAISseChunk, start_native_mcp_server, etc if needed
+#include "native_server.h"
+#include "server_daemon.h"
 
 #include <thread>
 #include <atomic>
@@ -18,20 +19,17 @@
 #include <cstring>
 #include <cstdlib>
 
-#define KLOG_TAG "KingdomOrchestrator"
-#define KLOG_I(...) __android_log_print(ANDROID_LOG_INFO, KLOG_TAG, __VA_ARGS__)
-#define KLOG_E(...) __android_log_print(ANDROID_LOG_ERROR, KLOG_TAG, __VA_ARGS__)
-#define KLOG_W(...) __android_log_print(ANDROID_LOG_WARN, KLOG_TAG, __VA_ARGS__)
+#define TAG_ORCH "KingdomOrchestrator"
 
 struct KingdomEngine {
     int64_t llm_handle = 0;
     void* sidecar_handle = nullptr;
     std::unique_ptr<kingdom::RollingLogger> logger;
     std::unique_ptr<kingdom::CognitiveVault> vault;
+    std::unique_ptr<kingdom::ServerDaemon> server_daemon;
     std::string storage_dir;
     std::string llm_model_name;
     std::atomic<bool> server_running{false};
-    std::unique_ptr<std::thread> server_thread;
     std::mutex gen_mutex;
 
     // Telemetry
@@ -44,37 +42,12 @@ struct KingdomEngine {
     std::atomic<bool> telemetry_running{false};
 };
 
-extern "C" {
-// Declare FormatOpenAISseChunk if native_server.h doesn't define it to avoid linker errors
-std::string FormatOpenAISseChunk(const char* content);
-bool start_native_mcp_server(int port);
-void stop_native_mcp_server();
-}
-
-// Fallback implementation of FormatOpenAISseChunk if not provided
-std::string FormatOpenAISseChunk(const char* content) {
-    std::string json = "data: {\"choices\":[{\"delta\":{\"content\":\"";
-    std::string c_str(content);
-    for (char c : c_str) {
-        if (c == '"') json += "\\\"";
-        else if (c == '\\') json += "\\\\";
-        else if (c == '\n') json += "\\n";
-        else if (c == '\r') json += "\\r";
-        else if (c == '\t') json += "\\t";
-        else json += c;
-    }
-    json += "\"}}]}\n\n";
-    return json;
-}
-
-void telemetry_loop(KingdomEngine* engine) {
+static void telemetry_loop(KingdomEngine* engine) {
     while (engine->telemetry_running) {
-        // Dummy CPU reading for demo purposes
         std::ifstream stat_file("/proc/stat");
         if (stat_file.is_open()) {
             std::string line;
             if (std::getline(stat_file, line)) {
-                // Just randomizing a bit or placeholder
                 engine->cpu_pct = 45.0f;
             }
         }
@@ -84,7 +57,7 @@ void telemetry_loop(KingdomEngine* engine) {
             std::string line;
             while(std::getline(mem_file, line)) {
                 if(line.find("MemFree:") == 0) {
-                    long free_kb;
+                    long free_kb = 0;
                     sscanf(line.c_str(), "MemFree: %ld kB", &free_kb);
                     engine->ram_mb = free_kb / 1024.0f;
                     break;
@@ -97,10 +70,10 @@ void telemetry_loop(KingdomEngine* engine) {
 }
 
 KingdomEngineHandle kingdom_engine_init(const char* storage_dir, const char* llm_path) {
-    KLOG_I("Initializing KingdomEngine at %s", storage_dir);
+    __android_log_print(ANDROID_LOG_INFO, TAG_ORCH, "Initializing KingdomEngine at %s", storage_dir);
     
     auto* engine = new KingdomEngine();
-    engine->storage_dir = storage_dir;
+    engine->storage_dir = storage_dir ? storage_dir : "";
     
     std::string log_path = engine->storage_dir + "/server.log";
     engine->logger = std::make_unique<kingdom::RollingLogger>(log_path);
@@ -108,11 +81,13 @@ KingdomEngineHandle kingdom_engine_init(const char* storage_dir, const char* llm
     std::string db_path = engine->storage_dir + "/kingdom.db";
     engine->vault = std::make_unique<kingdom::CognitiveVault>(db_path);
     
-    // BACKEND_OPENCL_GPU=1, threads=1
-    engine->llm_handle = essential_init_model(llm_path, 1, 1);
-    if (!engine->llm_handle) {
-        KLOG_W("GPU model init failed, trying CPU fallback");
-        engine->llm_handle = essential_init_model(llm_path, 0, 4); // CPU backend
+    if (llm_path && strlen(llm_path) > 0) {
+        // BACKEND_OPENCL_GPU=1, threads=1
+        engine->llm_handle = essential_init_model(llm_path, 1, 1);
+        if (!engine->llm_handle) {
+            __android_log_print(ANDROID_LOG_WARN, TAG_ORCH, "GPU model init failed, trying CPU fallback");
+            engine->llm_handle = essential_init_model(llm_path, 0, 4); // CPU backend
+        }
     }
     
     std::string intent_path = engine->storage_dir + "/models/all_minilm_l6_v2.onnx";
@@ -131,7 +106,7 @@ KingdomEngineHandle kingdom_engine_init(const char* storage_dir, const char* llm
     engine->telemetry_running = true;
     engine->telemetry_thread = std::make_unique<std::thread>(telemetry_loop, engine);
     
-    KLOG_I("KingdomEngine initialized successfully.");
+    __android_log_print(ANDROID_LOG_INFO, TAG_ORCH, "KingdomEngine initialized successfully.");
     return static_cast<KingdomEngineHandle>(engine);
 }
 
@@ -147,7 +122,7 @@ void kingdom_engine_process_async(KingdomEngineHandle handle,
                                    SseStreamCallback callback,
                                    void* user_data) {
     auto* engine = static_cast<KingdomEngine*>(handle);
-    if (!engine || !engine->llm_handle) return;
+    if (!engine || !engine->llm_handle || !callback) return;
     
     std::lock_guard<std::mutex> lock(engine->gen_mutex);
     
@@ -155,11 +130,11 @@ void kingdom_engine_process_async(KingdomEngineHandle handle,
     if (engine->sidecar_handle) {
         s_res = sidecar_process(engine->sidecar_handle, nullptr, 0, prompt);
         if (s_res) {
-            engine->npu_latency_ms = s_res->latency_ms;
+            engine->npu_latency_ms = static_cast<float>(s_res->latency_ms);
         }
     }
     
-    const char* final_prompt = s_res ? s_res->fully_formatted_prompt : prompt;
+    const char* final_prompt = (s_res && s_res->fully_formatted_prompt) ? s_res->fully_formatted_prompt : prompt;
     
     int64_t gen_ptr = essential_start_generation(engine->llm_handle, final_prompt, "", 1024);
     if (!gen_ptr) {
@@ -170,7 +145,7 @@ void kingdom_engine_process_async(KingdomEngineHandle handle,
     while (!essential_is_done(gen_ptr)) {
         const char* token = essential_next_token(gen_ptr);
         if (token) {
-            std::string sse_chunk = FormatOpenAISseChunk(token);
+            std::string sse_chunk = FormatOpenAISseChunk(token, "qwen2.5-coder-1.5b");
             callback(sse_chunk.c_str(), user_data);
         }
     }
@@ -184,7 +159,7 @@ void kingdom_engine_process_async(KingdomEngineHandle handle,
 
 const char* kingdom_engine_fast_autocomplete(KingdomEngineHandle handle, const char* code_prefix) {
     auto* engine = static_cast<KingdomEngine*>(handle);
-    if (!engine || !engine->llm_handle) return strdup("");
+    if (!engine || !engine->llm_handle || !code_prefix) return strdup("");
     
     std::unique_lock<std::mutex> lock(engine->gen_mutex, std::try_to_lock);
     if (!lock.owns_lock()) {
@@ -208,7 +183,7 @@ const char* kingdom_engine_embed_text(KingdomEngineHandle handle, const char* te
     auto* engine = static_cast<KingdomEngine*>(handle);
     if (!engine) return strdup("[]");
     
-    KLOG_W("Direct embed API not fully bridged, returning placeholder");
+    __android_log_print(ANDROID_LOG_WARN, TAG_ORCH, "Direct embed API not fully bridged, returning placeholder");
     std::string placeholder = "[0.0]";
     return strdup(placeholder.c_str());
 }
@@ -232,24 +207,34 @@ const char* kingdom_engine_get_recent_logs(KingdomEngineHandle handle, int max_l
     auto* engine = static_cast<KingdomEngine*>(handle);
     if (!engine || !engine->logger) return strdup("");
     
-    // Assuming RollingLogger has this method
-    std::string logs = ""; // engine->logger->get_recent_lines(max_lines);
+    std::string logs = engine->logger->get_recent_lines(max_lines);
     return strdup(logs.c_str());
 }
 
 bool kingdom_engine_start_server(KingdomEngineHandle handle, int port) {
-    // using native_server functions if linked
-    return start_native_mcp_server(port);
+    auto* engine = static_cast<KingdomEngine*>(handle);
+    if (!engine) return false;
+    
+    if (!engine->server_daemon) {
+        engine->server_daemon = std::make_unique<kingdom::ServerDaemon>(engine, port);
+    }
+    bool ok = engine->server_daemon->start();
+    engine->server_running = ok;
+    return ok;
 }
 
 void kingdom_engine_stop_server(KingdomEngineHandle handle) {
-    stop_native_mcp_server();
+    auto* engine = static_cast<KingdomEngine*>(handle);
+    if (!engine || !engine->server_daemon) return;
+    
+    engine->server_daemon->stop();
+    engine->server_running = false;
 }
 
 bool kingdom_engine_is_server_running(KingdomEngineHandle handle) {
     auto* engine = static_cast<KingdomEngine*>(handle);
-    if(!engine) return false;
-    return engine->server_running.load();
+    if (!engine || !engine->server_daemon) return false;
+    return engine->server_daemon->is_running();
 }
 
 void kingdom_engine_destroy(KingdomEngineHandle handle) {
@@ -265,12 +250,14 @@ void kingdom_engine_destroy(KingdomEngineHandle handle) {
     
     if (engine->sidecar_handle) {
         sidecar_destroy(engine->sidecar_handle);
+        engine->sidecar_handle = nullptr;
     }
     
     if (engine->llm_handle) {
         essential_free_model(engine->llm_handle);
+        engine->llm_handle = 0;
     }
     
     delete engine;
-    KLOG_I("KingdomEngine destroyed.");
+    __android_log_print(ANDROID_LOG_INFO, TAG_ORCH, "KingdomEngine destroyed.");
 }

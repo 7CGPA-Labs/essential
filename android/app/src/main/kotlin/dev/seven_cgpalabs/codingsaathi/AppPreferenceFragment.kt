@@ -80,8 +80,9 @@ class AppPreferenceFragment : PreferenceFragmentCompat() {
             val interfaces = NetworkInterface.getNetworkInterfaces()
             for (intf in interfaces) {
                 for (enumIpAddr in intf.inetAddresses) {
-                    if (!enumIpAddr.isLoopbackAddress && enumIpAddr.hostAddress.indexOf(':') < 0) {
-                        ip = enumIpAddr.hostAddress
+                    val addr = enumIpAddr.hostAddress
+                    if (!enumIpAddr.isLoopbackAddress && addr != null && !addr.contains(':')) {
+                        ip = addr
                     }
                 }
             }
