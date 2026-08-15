@@ -23,6 +23,13 @@
 #include <cstdlib>
 #include <mutex>
 #include <chrono>
+#include <vector>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
 
 #define DAEMON_TAG "ServerDaemon"
 
@@ -116,8 +123,138 @@ struct ServerDaemonImpl {
     KingdomEngineHandle engine = nullptr;
     std::atomic<bool>   running{false};
     int                 port = 8080;
+    int                 server_fd = -1;
+    std::unique_ptr<std::thread> thread;
 
-    // Threading is managed entirely by native_server (start_native_mcp_server)
+    void handle_client(int client_fd) {
+        char buffer[4096];
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+        if (bytes_read <= 0) {
+            close(client_fd);
+            return;
+        }
+
+        std::string req(buffer);
+        size_t body_start = req.find("\r\n\r\n");
+        std::string body = (body_start != std::string::npos) ? req.substr(body_start + 4) : "";
+
+        if (req.find("POST /v1/chat/completions") == 0) {
+            std::string headers =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/event-stream\r\n"
+                "Cache-Control: no-cache\r\n"
+                "Connection: keep-alive\r\n"
+                "Access-Control-Allow-Origin: *\r\n\r\n";
+            write(client_fd, headers.c_str(), headers.length());
+
+            std::string prompt = extractLastUserMessage(body);
+            if (prompt.empty()) prompt = "Hello";
+            std::string formatted_prompt = "<|im_start|>user\n" + prompt + "<|im_end|>\n<|im_start|>assistant\n";
+
+            struct CallbackCtx { int fd; };
+            CallbackCtx ctx{client_fd};
+
+            auto cb = [](const char* chunk, void* data) {
+                auto* c = static_cast<CallbackCtx*>(data);
+                if (c && c->fd >= 0 && chunk) {
+                    write(c->fd, chunk, strlen(chunk));
+                }
+            };
+
+            if (engine) {
+                kingdom_engine_process_async(engine, formatted_prompt.c_str(), nullptr, cb, &ctx);
+            }
+            close(client_fd);
+            return;
+        } else if (req.find("POST /v1/completions") == 0) {
+            std::string prompt = jsonGetString(body, "prompt");
+            const char* res = engine ? kingdom_engine_fast_autocomplete(engine, prompt.c_str()) : nullptr;
+            std::string res_json = res ? std::string(res) : "{\"choices\":[{\"text\":\"\"}]}";
+            if (res) free((void*)res);
+
+            std::string resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: " +
+                               std::to_string(res_json.length()) + "\r\n\r\n" + res_json;
+            write(client_fd, resp.c_str(), resp.length());
+        } else if (req.find("POST /v1/embeddings") == 0) {
+            std::string input = jsonGetString(body, "input");
+            const char* res = engine ? kingdom_engine_embed_text(engine, input.c_str()) : nullptr;
+            std::string res_json = res ? std::string(res) : "{\"data\":[]}";
+            if (res) free((void*)res);
+
+            std::string resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: " +
+                               std::to_string(res_json.length()) + "\r\n\r\n" + res_json;
+            write(client_fd, resp.c_str(), resp.length());
+        } else if (req.find("GET /v1/models") == 0) {
+            std::string res_json = "{\"object\":\"list\",\"data\":[{\"id\":\"qwen2.5-coder-1.5b\",\"object\":\"model\"},{\"id\":\"bge-small-en-v1.5\",\"object\":\"model\"},{\"id\":\"granite-code-128m\",\"object\":\"model\"}]}";
+            std::string resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: " +
+                               std::to_string(res_json.length()) + "\r\n\r\n" + res_json;
+            write(client_fd, resp.c_str(), resp.length());
+        } else if (req.find("GET /health") == 0) {
+            std::string res_json = "{\"status\":\"ok\",\"engine\":\"kingdom-native\"}";
+            std::string resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: " +
+                               std::to_string(res_json.length()) + "\r\n\r\n" + res_json;
+            write(client_fd, resp.c_str(), resp.length());
+        } else if (req.find("OPTIONS ") == 0) {
+            std::string resp = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\n\r\n";
+            write(client_fd, resp.c_str(), resp.length());
+        } else {
+            std::string resp = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+            write(client_fd, resp.c_str(), resp.length());
+        }
+        close(client_fd);
+    }
+
+    void run_loop() {
+        server_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_fd < 0) return;
+
+        int opt = 1;
+        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+        struct sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_port = htons(port);
+
+        if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            close(server_fd);
+            server_fd = -1;
+            return;
+        }
+
+        if (listen(server_fd, 16) < 0) {
+            close(server_fd);
+            server_fd = -1;
+            return;
+        }
+
+        int flags = fcntl(server_fd, F_GETFL, 0);
+        fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
+
+        while (running.load()) {
+            struct pollfd pfd{};
+            pfd.fd = server_fd;
+            pfd.events = POLLIN;
+
+            int ret = poll(&pfd, 1, 100);
+            if (ret > 0 && (pfd.revents & POLLIN)) {
+                struct sockaddr_in client_addr{};
+                socklen_t client_len = sizeof(client_addr);
+                int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+                if (client_fd >= 0) {
+                    std::thread([this, client_fd]() {
+                        handle_client(client_fd);
+                    }).detach();
+                }
+            }
+        }
+
+        if (server_fd >= 0) {
+            close(server_fd);
+            server_fd = -1;
+        }
+    }
 };
 
 static ServerDaemonImpl* g_daemon = nullptr;
@@ -133,11 +270,9 @@ void ServerDaemon::start(KingdomEngineHandle engine, int port) {
     g_daemon->engine = engine;
     g_daemon->port = port;
     g_daemon->running.store(true);
+    g_daemon->thread = std::make_unique<std::thread>(&ServerDaemonImpl::run_loop, g_daemon);
 
-    KLOG(DAEMON_TAG, "HTTP daemon starting on 0.0.0.0:%d", port);
-
-    // Start the existing native server infrastructure
-    kingdom_engine_start_server(engine, port);
+    KLOG(DAEMON_TAG, "HTTP daemon started on 0.0.0.0:%d", port);
 }
 
 void ServerDaemon::stop() {
@@ -145,9 +280,10 @@ void ServerDaemon::stop() {
     if (!g_daemon) return;
 
     g_daemon->running.store(false);
-    if (g_daemon->engine) {
-        kingdom_engine_stop_server(g_daemon->engine);
+    if (g_daemon->thread && g_daemon->thread->joinable()) {
+        g_daemon->thread->join();
     }
+    g_daemon->thread = nullptr;
 
     KLOG(DAEMON_TAG, "HTTP daemon stopped");
 }

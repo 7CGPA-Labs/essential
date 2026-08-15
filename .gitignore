@@ -22,12 +22,15 @@
 /build/
 
 # Android Studio & Gradle build artifacts
-/android/app/debug
-/android/app/profile
-/android/app/release
-/android/.gradle
-/android/captures
-local.properties
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/debug/
+/android/app/profile/
+/android/app/release/
+/android/captures/
+/android/local.properties
+/android/key.properties
 
 # Native CMake, C++ build & Large AI Model Weights
 .cxx/
@@ -37,4 +40,7 @@ models/
 *.gguf
 *.so
 !android/app/src/main/jniLibs/**
+android/app/src/main/jniLibs/**/libessential_native.so
 *.apk
+android/app/src/main/cpp/sqlite/
+

@@ -31,18 +31,44 @@ class ModelAssetManager(private val context: Context) {
         private const val TAG = "ModelAssetManager"
         private const val MODELS_DIR = "models"
 
-        /** Model manifest: filename → expected minimum size in bytes. */
-        val MODEL_MANIFEST = linkedMapOf(
-            "qwen2.5-coder-1.5b-q4_k_m.gguf" to 500_000_000L,
-            "all_minilm_l6_v2.onnx"           to 10_000_000L,
-            "bge_small_en_v1_5.onnx"          to 30_000_000L,
-            "bge_reranker_base.onnx"          to 50_000_000L,
-            "codeberta.onnx"                  to 60_000_000L,
-            "granite_code_128m.onnx"          to 60_000_000L,
-            "nli_deberta_v3_small.onnx"       to 40_000_000L,
-            "codebert_vulnerability.onnx"     to 60_000_000L,
-            "mobile_diffusion_lcm.onnx"       to 100_000_000L,
+        data class ModelSpec(
+            val filename: String,
+            val url: String,
+            val minSizeBytes: Long
         )
+
+        val MODEL_REGISTRY = listOf(
+            ModelSpec("qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+                "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+                500_000_000L),
+            ModelSpec("all_minilm_l6_v2.onnx",
+                "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx",
+                10_000_000L),
+            ModelSpec("bge_small_en_v1_5.onnx",
+                "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx",
+                30_000_000L),
+            ModelSpec("bge_reranker_base.onnx",
+                "https://huggingface.co/BAAI/bge-reranker-base/resolve/main/onnx/model.onnx",
+                50_000_000L),
+            ModelSpec("codeberta.onnx",
+                "https://huggingface.co/huggingface/CodeBERTa-small-v1/resolve/main/onnx/model.onnx",
+                60_000_000L),
+            ModelSpec("granite_code_128m.onnx",
+                "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct/resolve/main/onnx/model.onnx",
+                60_000_000L),
+            ModelSpec("nli_deberta_v3_small.onnx",
+                "https://huggingface.co/cross-encoder/nli-deberta-v3-small/resolve/main/onnx/model.onnx",
+                40_000_000L),
+            ModelSpec("codebert_vulnerability.onnx",
+                "https://huggingface.co/microsoft/codebert-base/resolve/main/onnx/model.onnx",
+                60_000_000L),
+            ModelSpec("mobile_diffusion_lcm.onnx",
+                "https://huggingface.co/nicjac/lcm-sdxl-onnx/resolve/main/unet/model.onnx",
+                100_000_000L)
+        )
+
+        /** Model manifest: filename → expected minimum size in bytes. */
+        val MODEL_MANIFEST = MODEL_REGISTRY.associate { it.filename to it.minSizeBytes }
     }
 
     data class ModelStatus(
@@ -115,14 +141,13 @@ class ModelAssetManager(private val context: Context) {
     // ── Private download helper ────────────────────────────────────────────
 
     private fun downloadModel(filename: String) {
-        // In production, resolve the download URL from a manifest JSON.
-        // For now, log the missing model as a placeholder.
-        Log.w(TAG, "Model download requested for: $filename " +
-                   "(configure CDN URL in model_manifest.json)")
-
-        // Example download implementation (commented out until CDN is configured):
-        // val url = "https://your-cdn.example.com/models/$filename"
-        // downloadFile(url, File(modelsDir, filename))
+        val spec = MODEL_REGISTRY.find { it.filename == filename }
+        if (spec != null) {
+            Log.i(TAG, "Starting download for ${spec.filename} from ${spec.url}")
+            downloadFile(spec.url, File(modelsDir, spec.filename))
+        } else {
+            Log.w(TAG, "No registry entry found for: $filename")
+        }
     }
 
     @Suppress("unused")

@@ -8,8 +8,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="#E0222222">
+    android:padding="14dp"
+    android:background="@drawable/widget_bg">
 
     <!-- Status & IP row -->
     <LinearLayout

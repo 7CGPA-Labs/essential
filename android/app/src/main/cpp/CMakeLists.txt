@@ -75,3 +75,16 @@ target_link_libraries(essential_native
     libonnxruntime
     sqlite3_local
 )
+
+target_compile_options(essential_native PRIVATE
+    -O3
+    -ffast-math
+    -march=armv8-a+simd
+    -DANDROID
+    -DGGML_USE_OPENCL
+)
+
+target_compile_definitions(essential_native PRIVATE
+    SQLITE_THREADSAFE=2
+    SQLITE_DEFAULT_WAL_AUTOCHECKPOINT=100
+)
